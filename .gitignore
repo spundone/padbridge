@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+keystore.properties
+*.jks
+!keystore/padbridge-dev.keystore
+dist/
+*.apk
+*.aab
+.DS_Store
+.kotlin/

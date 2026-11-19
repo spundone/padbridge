@@ -1,0 +1,1211 @@
+package dev.padbridge.ui
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.BrightnessHigh
+import androidx.compose.material.icons.rounded.BrightnessLow
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Mouse
+import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DesktopWindows
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.LaptopMac
+import androidx.compose.material.icons.rounded.Slideshow
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import dev.padbridge.DpadView
+import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.material.icons.rounded.KeyboardAlt
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.VerticalSplit
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.rounded.CloseFullscreen
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.OpenInFull
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.outlined.Bedtime as BedtimeOutlined
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.GpsFixed
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.KeyboardHide
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.StayCurrentLandscape
+import androidx.compose.material.icons.rounded.StayCurrentPortrait
+import androidx.compose.material.icons.rounded.TipsAndUpdates
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
+import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import dev.padbridge.AirMouseView
+import dev.padbridge.ClickBar
+import dev.padbridge.GamepadView
+import dev.padbridge.HidManager
+import dev.padbridge.HostOs
+import dev.padbridge.ImeCaptureView
+import dev.padbridge.KeyboardView
+import dev.padbridge.Keys
+import dev.padbridge.Settings
+import dev.padbridge.TrackpadView
+
+private data class Chip(val label: String, val action: () -> Unit)
+
+@Composable
+private fun AodButton(aod: Boolean, onAod: () -> Unit) {
+    androidx.compose.material3.IconButton(onClick = onAod) {
+        Icon(if (aod) Icons.Rounded.Bedtime else Icons.Outlined.BedtimeOutlined, if (aod) "Exit AOD mode" else "AOD mode")
+    }
+}
+
+/** Thin outline used in AOD mode, where every container is black. */
+@Composable
+private fun Modifier.aodOutline(aod: Boolean, shape: androidx.compose.ui.graphics.Shape): Modifier =
+    if (aod) border(1.dp, MaterialTheme.colorScheme.outline, shape) else this
+
+/**
+ * The screen's title chip. In AOD mode it turns into a watch-style readout: time and connection.
+ */
+@Composable
+private fun TitleChip(title: String, aod: Boolean, hid: HidUi?) {
+    val shape = RoundedCornerShape(12.dp)
+    Surface(shape = shape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.aodOutline(aod, shape)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            if (aod) {
+                Text(rememberClock(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Light)
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier.size(6.dp).background(
+                        if (hid?.connected == true) androidx.compose.ui.graphics.Color(0xFF4F7F5C)
+                        else MaterialTheme.colorScheme.outline,
+                        androidx.compose.foundation.shape.CircleShape,
+                    )
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (hid?.connected == true) hid.hostName ?: "Connected" else "Not connected",
+                    style = MaterialTheme.typography.labelMedium, maxLines = 1,
+                )
+            } else {
+                Text(title, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberClock(): String {
+    val ctx = LocalContext.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(60_000 - System.currentTimeMillis() % 60_000); now = System.currentTimeMillis() }
+    }
+    val pattern = if (android.text.format.DateFormat.is24HourFormat(ctx)) "HH:mm" else "h:mm"
+    return remember(now / 60_000) { java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(java.util.Date(now)) }
+}
+
+/** Shifts AOD content a few dp each minute so the same OLED pixels never stay lit (burn-in protection). */
+@Composable
+fun Modifier.aodPixelShift(aod: Boolean): Modifier {
+    if (!aod) return this
+    var shift by remember { mutableStateOf(0 to 0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            shift = (-3..3).random() to (-3..3).random()
+        }
+    }
+    return offset(shift.first.dp, shift.second.dp)
+}
+
+@Composable
+private fun FullscreenButton(fullscreen: Boolean, onToggle: () -> Unit) {
+    androidx.compose.material3.IconButton(onClick = onToggle) {
+        Icon(
+            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+            if (fullscreen) "Exit full screen" else "Full screen",
+        )
+    }
+}
+
+@Composable
+private fun ChipRow(chips: List<Chip>, modifier: Modifier = Modifier) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        items(chips) { c ->
+            AssistChip(
+                onClick = { dev.padbridge.Haptics.tick(); c.action() },
+                label = { Text(c.label) },
+                shape = RoundedCornerShape(12.dp),
+                colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                border = null,
+            )
+        }
+    }
+}
+
+private fun quickKeys(os: HostOs): List<Chip> {
+    val mod = when (os) { HostOs.MAC -> "⌘"; else -> "Ctrl+" }
+    fun k(code: Int, mods: Int = 0): () -> Unit = { HidManager.tap(code, mods) }
+    return listOf(
+        Chip("Esc", k(Keys.ESC)), Chip("Tab", k(Keys.TAB)),
+        Chip("←", k(Keys.LEFT)), Chip("↑", k(Keys.UP)), Chip("↓", k(Keys.DOWN)), Chip("→", k(Keys.RIGHT)),
+        Chip("⌫", k(Keys.BACKSPACE)), Chip("Del", k(Keys.DELETE)), Chip("⏎", k(Keys.ENTER)),
+        Chip("Home", k(Keys.HOME)), Chip("End", k(Keys.END)),
+        Chip("${mod}A", k(Keys.letter('a'), os.primary)), Chip("${mod}C", k(Keys.letter('c'), os.primary)),
+        Chip("${mod}V", k(Keys.letter('v'), os.primary)), Chip("${mod}Z", k(Keys.letter('z'), os.primary)),
+    )
+}
+
+// ====================================================================== Trackpad
+
+@Composable
+fun TrackpadScreen(
+    hid: HidUi, osVersion: Int, fullscreen: Boolean = false, onToggleFullscreen: () -> Unit = {},
+    onAod: () -> Unit = {}, aod: Boolean = false, onFullDisplay: () -> Unit = {},
+    onGoConnect: () -> Unit = {}, onAirMouse: () -> Unit = {},
+) {
+    val ctx = LocalContext.current
+    val os = remember(osVersion) { Settings.hostOs }
+    var kbOpen by remember { mutableStateOf(false) }
+    var guide by remember { mutableStateOf(false) }
+    var orientation by remember { mutableStateOf(Settings.trackpadOrientation) }
+    val ime = remember { ImeCaptureView(ctx) }
+    val activity = ctx as? dev.padbridge.MainActivity
+
+    // Like DeX's rotate button: auto, or lock the pad portrait / landscape.
+    androidx.compose.runtime.DisposableEffect(orientation) {
+        activity?.setTrackpadOrientation(orientation)
+        onDispose { activity?.setTrackpadOrientation(0) }
+    }
+
+    LaunchedEffect(kbOpen) {
+        if (kbOpen) ime.post { ime.showKeyboard() } else ime.hideKeyboard()
+    }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
+            if (hid.connected || aod) ConnectionChip(hid, aod)
+            Spacer(Modifier.weight(1f))
+            AodButton(aod, onAod)
+            OverflowMenu(
+                listOf(
+                    MenuEntry("Use the whole screen", Icons.Rounded.OpenInFull, action = onFullDisplay),
+                    MenuEntry(if (fullscreen) "Exit full screen" else "Full screen",
+                        if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
+                    MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
+                    MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
+                    MenuEntry("Auto-rotate", Icons.Rounded.ScreenRotation, checked = orientation == 0, divider = true) {
+                        orientation = 0; Settings.trackpadOrientation = 0
+                    },
+                    MenuEntry("Lock portrait", Icons.Rounded.StayCurrentPortrait, checked = orientation == 1) {
+                        orientation = 1; Settings.trackpadOrientation = 1
+                    },
+                    MenuEntry("Lock landscape", Icons.Rounded.StayCurrentLandscape, checked = orientation == 2) {
+                        orientation = 2; Settings.trackpadOrientation = 2
+                    },
+                )
+            )
+            Spacer(Modifier.width(4.dp))
+            FilledTonalIconToggleButton(
+                checked = kbOpen, onCheckedChange = { kbOpen = it },
+                modifier = Modifier.size(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide))
+                    .aodOutline(aod, IconButtonDefaults.mediumRoundShape),
+                shape = IconButtonDefaults.mediumRoundShape,
+            ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Keyboard") }
+        }
+        NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
+
+        AnimatedVisibility(kbOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(Modifier.padding(bottom = 8.dp)) {
+                AndroidView({ ime }, Modifier.fillMaxWidth().height(52.dp))
+                ChipRow(quickKeys(os), Modifier.padding(top = 8.dp))
+            }
+        }
+
+        AndroidView(
+            factory = { TrackpadView(it) },
+            update = { v -> hid.version; osVersion; aod; v.invalidate() },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
+
+        if (Settings.showClickButtons) {
+            AndroidView(
+                factory = { ClickBar(it) },
+                update = { v -> aod; v.invalidate() },
+                modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 8.dp),
+            )
+        }
+    }
+
+    if (guide) GestureGuide(os) { guide = false }
+}
+
+/** Cheat sheet of what every gesture does right now (DeX shows a similar hint screen). */
+@Composable
+private fun GestureGuide(os: HostOs, onDismiss: () -> Unit) {
+    val builtIn = listOf(
+        "Tap" to "Left click",
+        "Double tap" to "Double click",
+        "Tap, then drag" to "Drag / select",
+        "Two-finger move" to if (Settings.twoFingerNavigate) "Scroll (sideways = back / forward)" else "Scroll",
+        "Pinch" to "Zoom",
+        "Right / bottom edge slide" to if (Settings.edgeScroll) "Scroll" else "Off",
+    )
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        androidx.compose.foundation.lazy.LazyColumn(
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                Text("Gestures on ${os.label}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text("Change them in Settings → Gestures.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            items(builtIn) { (g, a) -> GuideRow(g, a, null) }
+            items(dev.padbridge.GestureSlot.entries.toList()) { slot ->
+                val a = Settings.gesture(slot, os)
+                if (a != dev.padbridge.GAction.NONE &&
+                    !(Settings.threeFingerDrag && slot.group == "Three fingers" && slot.name.startsWith("THREE_") && slot != dev.padbridge.GestureSlot.THREE_TAP)
+                ) GuideRow(slot.title, a.label, shortcutText(a, os))
+            }
+            if (Settings.threeFingerDrag) item { GuideRow("Three-finger move", "Drag", null) }
+        }
+    }
+}
+
+@Composable
+private fun GuideRow(gesture: String, action: String, detail: String?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(gesture, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(action, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium)
+            if (detail != null) Text(detail, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+// ====================================================================== Keyboard
+
+@Composable
+fun KeyboardScreen(
+    hid: HidUi, osVersion: Int, fullscreen: Boolean = false, onToggleFullscreen: () -> Unit = {},
+    onFullDisplay: () -> Unit = {}, onGoConnect: () -> Unit = {},
+) {
+    val ctx = LocalContext.current
+    val os = remember(osVersion) { Settings.hostOs }
+    var skipped by remember { mutableStateOf(0) }
+    var cfg by remember { mutableStateOf(0) }
+    var sheet by remember { mutableStateOf(false) }
+    val landscapeNow = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val showRows = remember(cfg, landscapeNow) { Settings.kbShowRows(landscapeNow) }
+    val ime = remember {
+        ImeCaptureView(ctx).apply { onSkipped = { n -> skipped = n } }
+    }
+    val imeUp = WindowInsets.isImeVisible
+
+    LaunchedEffect(skipped) {
+        if (skipped > 0) { kotlinx.coroutines.delay(3500); skipped = 0 }
+    }
+
+    Column(Modifier.fillMaxSize().padding(bottom = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp),
+        ) {
+            AndroidView({ ime }, Modifier.weight(1f).height(52.dp))
+            Spacer(Modifier.width(4.dp))
+            androidx.compose.material3.IconButton(onClick = { sheet = true }) {
+                Icon(Icons.Rounded.Dashboard, "Keyboard layout and size")
+            }
+            OverflowMenu(
+                listOf(
+                    MenuEntry("Keyboard on the whole screen", Icons.Rounded.OpenInFull, action = onFullDisplay),
+                    MenuEntry(if (fullscreen) "Exit full screen" else "Full screen",
+                        if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
+                )
+            )
+        }
+        NotConnectedBanner(hid, onGoConnect, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        AnimatedVisibility(skipped > 0) {
+            Text(
+                "$skipped character(s) can't be typed with a US layout and were skipped.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            )
+        }
+
+        if (showRows && !imeUp) {
+            ChipRow(os.shortcuts.map { s -> Chip(s.label) { HidManager.combo(s.combo) } }, Modifier.padding(top = 10.dp))
+            MediaRow(Modifier.padding(top = 8.dp))
+        }
+
+        if (!imeUp) {
+            KeyboardArea(hid, os, cfg, resizable = true, modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp))
+        }
+    }
+
+    if (sheet) KeyboardLayoutSheet(onChanged = { cfg++; ime.refreshMode() }) { sheet = false }
+}
+
+/**
+ * The on-screen keyboard plus a drag handle on top to resize it (double-tap the handle to fill again).
+ * Width and alignment come from the layout sheet. Everything is remembered per orientation.
+ */
+@Composable
+private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, modifier: Modifier = Modifier) {
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    var heightDp by remember(landscape, cfg) { mutableStateOf(Settings.kbHeight(landscape)) }
+    val layout = remember(landscape, cfg) { Settings.kbLayout(landscape) }
+    val widthFrac = remember(landscape, cfg) { Settings.kbWidth(landscape) }
+    val align = remember(landscape, cfg) { Settings.kbAlign(landscape) }
+    val gap = remember(cfg) { Settings.kbSplitGap }
+    val preview = remember(cfg) { Settings.kbPreview }
+
+    val freePad = remember(cfg) { resizable && Settings.kbFreePad }
+
+    @Composable
+    fun Keys(mod: Modifier) = AndroidView(
+        factory = { KeyboardView(it) },
+        update = { v ->
+            hid.version
+            v.keyPreview = preview
+            v.configure(os, layout, gap)
+            v.invalidate()
+        },
+        modifier = mod,
+    )
+
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+        val handle = if (resizable) 22f else 0f
+        val maxH = maxHeight.value - handle
+        val minH = 110f.coerceAtMost(maxH)
+        val h = if (!resizable || heightDp <= 0f) maxH else heightDp.coerceIn(minH, maxH)
+        val freeH = maxH - h
+        // Narrow keyboard pushed to one side: the rest of the row becomes a trackpad (e.g. numpad + pad).
+        val sidePad = freePad && widthFrac <= 0.8f && align != 1
+        Column(Modifier.fillMaxSize()) {
+            // Space freed by shrinking the keyboard becomes a trackpad.
+            if (freePad && freeH >= 72f) {
+                FreeSpacePad(hid, Modifier.weight(1f).fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp))
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            if (resizable) {
+                Box(
+                    Modifier.fillMaxWidth().height(handle.dp)
+                        .pointerInput(landscape) {
+                            detectVerticalDragGestures(onDragEnd = { Settings.setKbHeight(landscape, heightDp) }) { change, dy ->
+                                change.consume()
+                                val cur = if (heightDp <= 0f) maxH else heightDp
+                                heightDp = (cur - dy / density).coerceIn(minH, maxH)
+                            }
+                        }
+                        .pointerInput(landscape) {
+                            detectTapGestures(onDoubleTap = { heightDp = 0f; Settings.setKbHeight(landscape, 0f) })
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.size(width = 40.dp, height = 4.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant, androidx.compose.foundation.shape.CircleShape)
+                    )
+                }
+            }
+            if (sidePad) {
+                Row(
+                    Modifier.fillMaxWidth().height(h.dp).padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (align == 2) FreeSpacePad(hid, Modifier.weight(1f - widthFrac).fillMaxHeight())
+                    Keys(Modifier.weight(widthFrac).fillMaxHeight())
+                    if (align == 0) FreeSpacePad(hid, Modifier.weight(1f - widthFrac).fillMaxHeight())
+                }
+            } else {
+                Box(
+                    Modifier.fillMaxWidth().height(h.dp).padding(horizontal = 4.dp),
+                    contentAlignment = when (align) { 0 -> Alignment.CenterStart; 2 -> Alignment.CenterEnd; else -> Alignment.Center },
+                ) {
+                    Keys(Modifier.fillMaxWidth(widthFrac).fillMaxHeight())
+                }
+            }
+        }
+    }
+}
+
+/** A compact trackpad for space the keyboard doesn't use: same gestures, no hint text. */
+@Composable
+private fun FreeSpacePad(hid: HidUi, modifier: Modifier) {
+    AndroidView(
+        factory = { TrackpadView(it).apply { compact = true } },
+        update = { v -> hid.version; v.invalidate() },
+        modifier = modifier,
+    )
+}
+
+/** Layout, size and typing options for the keyboard in the current orientation. */
+@Composable
+private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    var layout by remember { mutableStateOf(Settings.kbLayout(landscape)) }
+    var width by remember { mutableStateOf(Settings.kbWidth(landscape)) }
+    var align by remember { mutableStateOf(Settings.kbAlign(landscape)) }
+    var gap by remember { mutableStateOf(Settings.kbSplitGap) }
+    var rows by remember { mutableStateOf(Settings.kbShowRows(landscape)) }
+    var preview by remember { mutableStateOf(Settings.kbPreview) }
+    var predictive by remember { mutableStateOf(Settings.predictiveTyping) }
+    var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
+    val icons = mapOf(
+        dev.padbridge.KbLayout.FULL to Icons.Rounded.Keyboard,
+        dev.padbridge.KbLayout.FULL_NUMPAD to Icons.Rounded.Calculate,
+        dev.padbridge.KbLayout.COMPACT_65 to Icons.Rounded.KeyboardAlt,
+        dev.padbridge.KbLayout.SPLIT to Icons.Rounded.VerticalSplit,
+        dev.padbridge.KbLayout.GAMING to Icons.Rounded.SportsEsports,
+        dev.padbridge.KbLayout.NUMPAD to Icons.Rounded.Dialpad,
+    )
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        androidx.compose.foundation.lazy.LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap),
+        ) {
+            item {
+                Text("Keyboard · ${if (landscape) "landscape" else "portrait"}",
+                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text("Layout and size are remembered separately for each orientation.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp))
+            }
+            val all = dev.padbridge.KbLayout.entries
+            items(all.size) { i ->
+                val l = all[i]
+                val selected = l == layout
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { layout = l; Settings.setKbLayout(landscape, l); onChanged() },
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(i, all.size),
+                    colors = if (selected) androidx.compose.material3.ListItemDefaults.segmentedColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        supportingContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        leadingContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) else segColors(),
+                    leadingContent = { Icon(icons.getValue(l), null) },
+                    supportingContent = { Text(l.blurb) },
+                    trailingContent = if (selected) ({ Icon(Icons.Rounded.Check, null) }) else null,
+                ) { Text(l.label) }
+            }
+
+            item { Text("Size", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
+            item {
+                Column {
+                    Text("Width · ${(width * 100).toInt()}%", style = MaterialTheme.typography.bodyLarge)
+                    androidx.compose.material3.Slider(
+                        value = width, valueRange = 0.4f..1f, steps = 11,
+                        onValueChange = { width = it; Settings.setKbWidth(landscape, it); onChanged() },
+                    )
+                    Text("Height: drag the bar above the keys; the space above becomes a trackpad. Double-tap the bar to fill the space again. " +
+                        "A narrower keyboard aligned left or right gets a trackpad beside it.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    listOf("Left", "Center", "Right").forEachIndexed { i, label ->
+                        ToggleButton(
+                            checked = align == i,
+                            onCheckedChange = { align = i; Settings.setKbAlign(landscape, i); onChanged() },
+                            enabled = width < 0.99f,
+                            modifier = Modifier.weight(1f),
+                            shapes = when (i) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                2 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                        ) { Text(label) }
+                    }
+                }
+            }
+            if (layout == dev.padbridge.KbLayout.SPLIT) item {
+                Column(Modifier.padding(top = 8.dp)) {
+                    Text("Split gap · ${"%.1f".format(gap)} keys", style = MaterialTheme.typography.bodyLarge)
+                    androidx.compose.material3.Slider(
+                        value = gap, valueRange = 0f..8f, steps = 15,
+                        onValueChange = { gap = it; Settings.kbSplitGap = it; onChanged() },
+                    )
+                }
+            }
+            item {
+                androidx.compose.material3.TextButton(onClick = {
+                    Settings.setKbHeight(landscape, 0f); Settings.setKbWidth(landscape, 1f); Settings.setKbAlign(landscape, 1)
+                    width = 1f; align = 1; onChanged()
+                }) { Text("Reset size") }
+            }
+
+            item { Text("Options", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) }
+            item {
+                SheetSwitch("Trackpad in free space", freePadOn, 0, 4) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
+            }
+            item {
+                SheetSwitch("Shortcut and media rows", rows, 1, 4) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
+            }
+            item {
+                SheetSwitch("Key preview bubbles", preview, 2, 4) { preview = it; Settings.kbPreview = it; onChanged() }
+            }
+            item {
+                SheetSwitch("Phone keyboard: predictive (glide, autocorrect)", predictive, 3, 4) {
+                    predictive = it; Settings.predictiveTyping = it; onChanged()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetSwitch(title: String, value: Boolean, index: Int, count: Int, onChange: (Boolean) -> Unit) {
+    androidx.compose.material3.SegmentedListItem(
+        onClick = { onChange(!value) },
+        shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(index, count),
+        colors = segColors(),
+        trailingContent = { androidx.compose.material3.Switch(checked = value, onCheckedChange = onChange) },
+    ) { Text(title) }
+}
+
+/**
+ * Keyboard on the whole display: no bars or rows, keys edge to edge (clear of the camera cutout).
+ * A small handle at the top opens Exit and the layout sheet.
+ */
+@Composable
+fun FullDisplayKeyboard(hid: HidUi, osVersion: Int, onExit: () -> Unit) {
+    val os = remember(osVersion) { Settings.hostOs }
+    var cfg by remember { mutableStateOf(0) }
+    var sheet by remember { mutableStateOf(false) }
+    var controls by remember { mutableStateOf(true) }
+    LaunchedEffect(controls, sheet) { if (controls && !sheet) { kotlinx.coroutines.delay(4000); controls = false } }
+
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout)) {
+        Box(
+            Modifier.fillMaxWidth().height(22.dp).clickable(onClickLabel = "Show controls") { controls = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(width = 40.dp, height = 4.dp)
+                .background(MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape))
+        }
+        KeyboardArea(hid, os, cfg, resizable = false,
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 6.dp))
+    }
+    Box(Modifier.fillMaxSize()) {
+        AnimatedVisibility(controls, modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
+            enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            HorizontalFloatingToolbar(expanded = true, colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors()) {
+                androidx.compose.material3.IconButton(onClick = onExit) { Icon(Icons.Rounded.CloseFullscreen, "Exit full display") }
+                androidx.compose.material3.IconButton(onClick = { sheet = true }) { Icon(Icons.Rounded.Dashboard, "Keyboard layout") }
+                androidx.compose.material3.IconButton(onClick = { controls = false }) { Icon(Icons.Rounded.ExpandLess, "Hide controls") }
+            }
+        }
+    }
+    if (sheet) KeyboardLayoutSheet(onChanged = { cfg++ }) { sheet = false; controls = false }
+}
+
+@Composable
+private fun MediaRow(modifier: Modifier = Modifier) {
+    val items: List<Pair<ImageVector, Int>> = listOf(
+        Icons.Rounded.SkipPrevious to Keys.C_PREV,
+        Icons.Rounded.PlayArrow to Keys.C_PLAY_PAUSE,
+        Icons.Rounded.SkipNext to Keys.C_NEXT,
+        Icons.AutoMirrored.Rounded.VolumeDown to Keys.C_VOL_DOWN,
+        Icons.AutoMirrored.Rounded.VolumeUp to Keys.C_VOL_UP,
+        Icons.AutoMirrored.Rounded.VolumeOff to Keys.C_MUTE,
+        Icons.Rounded.BrightnessLow to Keys.C_BRIGHT_DOWN,
+        Icons.Rounded.BrightnessHigh to Keys.C_BRIGHT_UP,
+    )
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        items(items) { (icon, usage) ->
+            if (usage == Keys.C_PLAY_PAUSE) {
+                FilledIconButton(
+                    onClick = { dev.padbridge.Haptics.tick(); HidManager.consumer(usage) },
+                    shapes = IconButtonDefaults.shapes(),
+                ) { Icon(icon, null) }
+            } else {
+                FilledTonalIconButton(
+                    onClick = { dev.padbridge.Haptics.tick(); HidManager.consumer(usage) },
+                    shapes = IconButtonDefaults.shapes(),
+                ) { Icon(icon, null) }
+            }
+        }
+    }
+}
+
+// ====================================================================== Gamepad
+
+@Composable
+fun GamepadScreen(onExit: () -> Unit) {
+    var ps by remember { mutableStateOf(Settings.gamepadStyle == "ps") }
+    var haptics by remember { mutableStateOf(Settings.haptics) }
+    var gyro by remember { mutableStateOf(Settings.gamepadGyro) }
+    var preset by remember { mutableStateOf(Settings.gamepadPreset) }
+    var presetMenu by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    val hasGyro = remember { dev.padbridge.Motion.hasGyro(ctx.applicationContext) }
+
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { GamepadView(it) },
+            update = {
+                it.style = if (ps) GamepadView.Style.PLAYSTATION else GamepadView.Style.XBOX
+                it.preset = preset
+                it.gyroMode = gyro
+            },
+            onRelease = { it.releaseAll() },
+            modifier = Modifier.fillMaxSize(),
+        )
+        HorizontalFloatingToolbar(
+            expanded = true,
+            colors = FloatingToolbarDefaults.standardFloatingToolbarColors(),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+        ) {
+            FilledTonalIconButton(onClick = onExit) { Icon(Icons.Rounded.Close, "Exit gamepad") }
+            Spacer(Modifier.width(8.dp))
+            // Preset (layout for the kind of game) + button labels, in one menu to keep the toolbar short.
+            Box {
+                androidx.compose.material3.FilledTonalButton(onClick = { presetMenu = true }) {
+                    Icon(Icons.Rounded.SportsEsports, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(preset.label, fontWeight = FontWeight.Medium)
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = presetMenu, onDismissRequest = { presetMenu = false }, shape = RoundedCornerShape(16.dp),
+                ) {
+                    dev.padbridge.GamePreset.entries.forEach { p ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(p.label, fontWeight = FontWeight.Medium)
+                                    Text(p.blurb, style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            trailingIcon = if (p == preset) ({ Icon(Icons.Rounded.Check, null) }) else null,
+                            onClick = {
+                                presetMenu = false
+                                preset = p; Settings.gamepadPreset = p
+                                // Each preset has a sensible gyro default (racing steers, first person aims).
+                                if (hasGyro) { gyro = p.defaultGyro; Settings.gamepadGyro = gyro }
+                            },
+                        )
+                    }
+                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    listOf("Xbox labels", "PlayStation labels").forEachIndexed { i, label ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(label) },
+                            trailingIcon = if (ps == (i == 1)) ({ Icon(Icons.Rounded.Check, null) }) else null,
+                            onClick = { presetMenu = false; ps = i == 1; Settings.gamepadStyle = if (ps) "ps" else "xbox" },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            if (hasGyro) {
+                // Off -> aim (right stick follows the phone's turn) -> steer (tilt drives the left stick).
+                ToggleButton(
+                    checked = gyro != 0,
+                    onCheckedChange = { gyro = (gyro + 1) % 3; Settings.gamepadGyro = gyro },
+                ) {
+                    Text(
+                        when (gyro) { 1 -> "Gyro aim"; 2 -> "Gyro steer"; else -> "Gyro off" },
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            FilledTonalIconToggleButton(checked = haptics, onCheckedChange = { haptics = it; Settings.haptics = it }) {
+                Icon(Icons.Rounded.Vibration, "Haptics")
+            }
+        }
+    }
+}
+
+// ====================================================================== Full display trackpad
+
+/**
+ * The trackpad on every pixel of the display: no margins, bars or toolbar, under the camera cutout.
+ * A floating toolbar shows on entry, then folds into a small handle at the top; tap it for controls.
+ */
+@Composable
+fun FullDisplayTrackpad(hid: HidUi, osVersion: Int, aod: Boolean, onAod: () -> Unit, onExit: () -> Unit) {
+    val ctx = LocalContext.current
+    val os = remember(osVersion) { Settings.hostOs }
+    var controls by remember { mutableStateOf(true) }
+    var kbOpen by remember { mutableStateOf(false) }
+    var poke by remember { mutableStateOf(0) }
+    val ime = remember { ImeCaptureView(ctx) }
+
+    // Controls fold away after a few seconds unless the keyboard is open.
+    LaunchedEffect(controls, poke, kbOpen) {
+        if (controls && !kbOpen) { kotlinx.coroutines.delay(4000); controls = false }
+    }
+    LaunchedEffect(kbOpen) { if (kbOpen) ime.post { ime.showKeyboard() } else ime.hideKeyboard() }
+
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { TrackpadView(it).apply { fullBleed = true } },
+            update = { v -> hid.version; osVersion; aod; v.invalidate() },
+            modifier = Modifier.fillMaxSize(),
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.displayCutout)
+                .padding(top = 6.dp),
+        ) {
+            AnimatedVisibility(!controls, enter = fadeIn(), exit = fadeOut()) {
+                Box(
+                    Modifier.size(width = 72.dp, height = 28.dp)
+                        .clickable(onClickLabel = "Show controls") { controls = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.size(width = 40.dp, height = 5.dp)
+                            .background(MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape)
+                    )
+                }
+            }
+            AnimatedVisibility(controls, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                HorizontalFloatingToolbar(
+                    expanded = true,
+                    // Vibrant so it stands out from the pad, which fills the screen in the same surface color.
+                    colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+                    modifier = Modifier.aodOutline(aod, FloatingToolbarDefaults.ContainerShape),
+                ) {
+                    androidx.compose.material3.IconButton(onClick = onExit) {
+                        Icon(Icons.Rounded.CloseFullscreen, "Exit full display")
+                    }
+                    FilledTonalIconToggleButton(checked = kbOpen, onCheckedChange = { kbOpen = it; poke++ }) {
+                        Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Keyboard")
+                    }
+                    AodButton(aod) { onAod(); poke++ }
+                    androidx.compose.material3.IconButton(onClick = { controls = false }) {
+                        Icon(Icons.Rounded.ExpandLess, "Hide controls")
+                    }
+                }
+            }
+            AnimatedVisibility(kbOpen) {
+                Column(Modifier.padding(top = 8.dp).width(360.dp)) {
+                    AndroidView({ ime }, Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp))
+                    ChipRow(quickKeys(os), Modifier.padding(top = 6.dp))
+                }
+            }
+        }
+    }
+}
+
+// ====================================================================== Air mouse
+
+@Composable
+fun AirMouseScreen(
+    fullscreen: Boolean = false, onToggleFullscreen: () -> Unit = {}, onAod: () -> Unit = {}, aod: Boolean = false,
+) {
+    var always by remember { mutableStateOf(Settings.airAlwaysAim) }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
+            TitleChip("Air mouse", aod, null)
+            Spacer(Modifier.weight(1f))
+            AodButton(aod, onAod)
+            FullscreenButton(fullscreen, onToggleFullscreen)
+            Spacer(Modifier.width(4.dp))
+            ToggleButton(
+                checked = always,
+                onCheckedChange = { always = it; Settings.airAlwaysAim = it },
+                colors = if (aod) androidx.compose.material3.ToggleButtonDefaults.colors(
+                    containerColor = androidx.compose.ui.graphics.Color.Black,
+                    checkedContainerColor = androidx.compose.ui.graphics.Color.Black,
+                    checkedContentColor = MaterialTheme.colorScheme.primary,
+                ) else androidx.compose.material3.ToggleButtonDefaults.colors(),
+                border = if (aod) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+            ) {
+                Icon(Icons.Rounded.GpsFixed, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Always aim")
+            }
+        }
+        AndroidView(
+            factory = { AirMouseView(it) },
+            update = { it.alwaysAim = always; aod; it.invalidate() },
+            onRelease = { it.releaseAll() },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
+    }
+}
+
+
+// ====================================================================== Remote (D-pad)
+
+/**
+ * TV-remote style D-pad for Android TV, Apple TV, a Mac, a PC or a slideshow. The profile decides what
+ * Back, Home and the extra buttons send; arrows repeat while held. Volume buttons can drive it too.
+ */
+@Composable
+fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> Unit = {}, onGoConnect: () -> Unit = {}) {
+    val ctx = LocalContext.current
+    val activity = ctx as? dev.padbridge.MainActivity
+    val os = remember(osVersion) { Settings.hostOs }
+    var profile by remember { mutableStateOf(Settings.remoteProfile) }
+    var volKeys by remember { mutableStateOf(Settings.remoteVolumeKeys) }
+    var kbOpen by remember { mutableStateOf(false) }
+    val ime = remember { ImeCaptureView(ctx) }
+    LaunchedEffect(kbOpen) { if (kbOpen) ime.post { ime.showKeyboard() } else ime.hideKeyboard() }
+
+    // Phone volume buttons: Slides = previous / next slide, otherwise the host's volume.
+    androidx.compose.runtime.DisposableEffect(profile, volKeys) {
+        activity?.volumeKeyHandler = if (!volKeys) null else { up, pressed ->
+            if (pressed) {
+                if (profile == dev.padbridge.RemoteProfile.SLIDES)
+                    dev.padbridge.RemoteSender.tap(dev.padbridge.RemoteOut.Key(if (up) Keys.RIGHT else Keys.LEFT))
+                else HidManager.consumer(if (up) Keys.C_VOL_UP else Keys.C_VOL_DOWN)
+                dev.padbridge.Haptics.tick()
+            }
+            true
+        }
+        onDispose { activity?.volumeKeyHandler = null }
+    }
+
+    val (prev, next) = profile.prevNext
+    val back = profile.back
+    val home = profile.home(os)
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            if (hid.connected || aod) ConnectionChip(hid, aod)
+            Spacer(Modifier.weight(1f))
+            AodButton(aod, onAod)
+            FilledTonalIconToggleButton(
+                checked = kbOpen, onCheckedChange = { kbOpen = it },
+                modifier = Modifier.aodOutline(aod, IconButtonDefaults.filledShape),
+            ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Type text") }
+        }
+
+        NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
+
+        // Profile picker
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            items(dev.padbridge.RemoteProfile.entries) { p ->
+                androidx.compose.material3.FilterChip(
+                    selected = p == profile,
+                    onClick = { profile = p; Settings.remoteProfile = p },
+                    label = { Text(p.label) },
+                    leadingIcon = {
+                        Icon(
+                            when (p) {
+                                dev.padbridge.RemoteProfile.ANDROID_TV, dev.padbridge.RemoteProfile.APPLE_TV -> Icons.Rounded.Tv
+                                dev.padbridge.RemoteProfile.MAC -> Icons.Rounded.LaptopMac
+                                dev.padbridge.RemoteProfile.PC -> Icons.Rounded.DesktopWindows
+                                dev.padbridge.RemoteProfile.SLIDES -> Icons.Rounded.Slideshow
+                            }, null, Modifier.size(18.dp),
+                        )
+                    },
+                )
+            }
+        }
+
+        AnimatedVisibility(kbOpen) {
+            AndroidView({ ime }, Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp))
+        }
+
+        // The remote "body": one rounded panel holding the controls, like a physical remote.
+        val bodyShape = RoundedCornerShape(40.dp)
+        Surface(
+            shape = bodyShape,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp).aodOutline(aod, bodyShape),
+        ) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+        // Back · Home
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            RemoteKey(back, Icons.AutoMirrored.Rounded.ArrowBack, aod, big = true)
+            RemoteKey(home, if (profile == dev.padbridge.RemoteProfile.SLIDES) Icons.Rounded.Slideshow else Icons.Rounded.Home, aod, big = true)
+        }
+
+        // D-pad
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center,
+        ) {
+            // Square, as large as fits: the smaller of the free width and height (capped for tablets).
+            val side = minOf(maxWidth, maxHeight, 420.dp)
+            AndroidView(
+                factory = { DpadView(it) },
+                update = { v -> aod; v.invalidate() },
+                modifier = Modifier.size(side),
+            )
+        }
+
+        // Transport + volume
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            RemoteKey(prev, if (profile == dev.padbridge.RemoteProfile.SLIDES) Icons.Rounded.ChevronLeft else Icons.Rounded.SkipPrevious, aod)
+            RemoteKey(dev.padbridge.RemoteButton("Play / pause", dev.padbridge.RemoteOut.Consumer(Keys.C_PLAY_PAUSE)), Icons.Rounded.PlayArrow, aod, primary = true)
+            RemoteKey(next, if (profile == dev.padbridge.RemoteProfile.SLIDES) Icons.Rounded.ChevronRight else Icons.Rounded.SkipNext, aod)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            RemoteKey(dev.padbridge.RemoteButton("Volume down", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_DOWN)), Icons.AutoMirrored.Rounded.VolumeDown, aod)
+            RemoteKey(dev.padbridge.RemoteButton("Mute", dev.padbridge.RemoteOut.Consumer(Keys.C_MUTE)), Icons.AutoMirrored.Rounded.VolumeOff, aod)
+            RemoteKey(dev.padbridge.RemoteButton("Volume up", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_UP)), Icons.AutoMirrored.Rounded.VolumeUp, aod)
+        }
+        }
+        }
+
+        // Profile extras
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+            items(profile.extras(os)) { b ->
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { dev.padbridge.RemoteSender.tap(b.out); dev.padbridge.Haptics.tick() },
+                ) { Text(b.label) }
+            }
+            item {
+                androidx.compose.material3.FilterChip(
+                    selected = volKeys,
+                    onClick = { volKeys = !volKeys; Settings.remoteVolumeKeys = volKeys },
+                    label = { Text(if (profile == dev.padbridge.RemoteProfile.SLIDES) "Volume keys = slides" else "Volume keys") },
+                    leadingIcon = { Icon(Icons.Rounded.Vibration, null, Modifier.size(18.dp)) },
+                )
+            }
+        }
+    }
+}
+
+/** A remote button: keys are held while your finger is down (so they repeat); consumer keys tap. */
+@Composable
+private fun RemoteKey(
+    b: dev.padbridge.RemoteButton, icon: ImageVector, aod: Boolean, big: Boolean = false, primary: Boolean = false,
+) {
+    val size = if (big) 64.dp else 56.dp
+    val shape = if (big) RoundedCornerShape(20.dp) else androidx.compose.foundation.shape.CircleShape
+    var pressed by remember { mutableStateOf(false) }
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = if (pressed) RoundedCornerShape(12.dp) else shape,
+        color = when {
+            pressed -> cs.primary
+            primary -> cs.primaryContainer
+            else -> cs.secondaryContainer
+        },
+        contentColor = when {
+            pressed -> cs.onPrimary
+            primary -> cs.onPrimaryContainer
+            else -> cs.onSecondaryContainer
+        },
+        modifier = Modifier.size(width = if (big) 112.dp else size, height = size)
+            .aodOutline(aod, shape)
+            .semantics { contentDescription = b.label; role = androidx.compose.ui.semantics.Role.Button }
+            .pointerInput(b) {
+                detectTapGestures(onPress = {
+                    pressed = true
+                    dev.padbridge.Haptics.click()
+                    dev.padbridge.RemoteSender.down(b.out)
+                    tryAwaitRelease()
+                    dev.padbridge.RemoteSender.up(b.out)
+                    pressed = false
+                })
+            },
+    ) {
+        Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null)
+            if (big) {
+                Spacer(Modifier.width(6.dp))
+                Text(b.label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            }
+        }
+    }
+}
+
+
+// ====================================================================== shared bits
+
+data class MenuEntry(
+    val label: String, val icon: ImageVector, val checked: Boolean? = null, val divider: Boolean = false,
+    val action: () -> Unit,
+)
+
+/** ⋮ menu for secondary toolbar actions, so input screens keep a calm top row. */
+@Composable
+fun OverflowMenu(entries: List<MenuEntry>) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        androidx.compose.material3.IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, "More options") }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(16.dp)) {
+            entries.forEach { e ->
+                if (e.divider) androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(e.label) },
+                    leadingIcon = { Icon(e.icon, null) },
+                    trailingIcon = if (e.checked == true) ({ Icon(Icons.Rounded.Check, null) }) else null,
+                    onClick = { open = false; e.action() },
+                )
+            }
+        }
+    }
+}
+
+/** Connected computer at a glance (dot + name), for screens where the title would repeat the tab. */
+@Composable
+fun ConnectionChip(hid: HidUi, aod: Boolean) {
+    val shape = RoundedCornerShape(12.dp)
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = shape,
+        color = if (hid.connected) cs.secondaryContainer else cs.surfaceContainerHigh,
+        modifier = Modifier.aodOutline(aod, shape),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            if (aod) {
+                Text(rememberClock(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Light)
+                Spacer(Modifier.width(8.dp))
+            }
+            Box(Modifier.size(8.dp).background(if (hid.connected) cs.tertiary else cs.outline, androidx.compose.foundation.shape.CircleShape))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (hid.connected) hid.hostName ?: "Connected" else "Not connected",
+                style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 180.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Shown on input screens while nothing is connected: one tap reconnects to the last computer,
+ * or jumps to the Connect tab. Hidden while connected.
+ */
+@Composable
+fun NotConnectedBanner(hid: HidUi, onGoConnect: () -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(!hid.connected, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        val last = remember(hid.version) { HidManager.lastHostDevice() }
+        // Registering is a normal second or two at startup: show progress, not a "Fix" button.
+        val connecting = hid.state == HidManager.State.CONNECTING || hid.state == HidManager.State.REGISTERING
+        val ready = hid.state == HidManager.State.READY
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = modifier.fillMaxWidth(),
+        ) {
+            Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (connecting) androidx.compose.material3.LoadingIndicator(Modifier.size(28.dp))
+                else Icon(Icons.Rounded.LinkOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    when {
+                        hid.state == HidManager.State.REGISTERING -> "Starting Bluetooth…"
+                        connecting -> "Connecting…"
+                        ready -> "Not connected"
+                        else -> hid.detail.ifEmpty { "Bluetooth isn't ready" }
+                    },
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!connecting) {
+                    if (ready && last != null) {
+                        androidx.compose.material3.FilledTonalButton(onClick = { HidManager.connect(last) }) {
+                            Text("Connect to ${HidManager.name(last)}", maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 160.dp))
+                        }
+                    } else {
+                        androidx.compose.material3.TextButton(onClick = onGoConnect) { Text(if (ready) "Choose computer" else "Fix") }
+                    }
+                }
+            }
+        }
+    }
+}
