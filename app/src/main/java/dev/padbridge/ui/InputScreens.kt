@@ -50,6 +50,7 @@ import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -418,7 +419,8 @@ fun KeyboardScreen(
             )
         }
 
-        if (showRows && !imeUp) {
+        val laptopNow = rememberLaptopDeck(cfg)
+        if (showRows && !imeUp && !laptopNow) {
             ChipRow(os.shortcuts.map { s -> Chip(s.label) { HidManager.combo(s.combo) } }, Modifier.padding(top = 10.dp))
             MediaRow(Modifier.padding(top = 8.dp))
         }
@@ -448,6 +450,8 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     val preview = remember(cfg) { Settings.kbPreview }
 
     val freePad = remember(cfg) { resizable && Settings.kbFreePad }
+    val laptop = rememberLaptopDeck(cfg)
+    val tablet = isTablet()
 
     @Composable
     fun Keys(mod: Modifier) = AndroidView(
@@ -461,11 +465,18 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
         modifier = mod,
     )
 
+    if (laptop) {
+        LaptopDeck(hid, modifier) { m -> Keys(m) }
+        return
+    }
+
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
         val handle = if (resizable) 22f else 0f
         val maxH = maxHeight.value - handle
         val minH = 110f.coerceAtMost(maxH)
-        val h = if (!resizable || heightDp <= 0f) maxH else heightDp.coerceIn(minH, maxH)
+        // On tablets "fill" stops at about half the width tall, so keys stay key-shaped; the rest is trackpad.
+        val fill = if (tablet && resizable) minOf(maxH, maxWidth.value * 0.5f) else maxH
+        val h = if (!resizable || heightDp <= 0f) fill else heightDp.coerceIn(minH, maxH)
         val freeH = maxH - h
         // Narrow keyboard pushed to one side: the rest of the row becomes a trackpad (e.g. numpad + pad).
         val sidePad = freePad && widthFrac <= 0.8f && align != 1
@@ -518,6 +529,36 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     }
 }
 
+/** True on tablets (smallest width ≥ 600 dp). */
+@Composable
+fun isTablet(): Boolean = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp >= 600
+
+@Composable
+private fun rememberLaptopDeck(cfg: Int): Boolean {
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val tablet = isTablet()
+    return remember(cfg, landscape, tablet) { Settings.kbLaptop(landscape, tablet && landscape) }
+}
+
+/**
+ * Laptop deck: the keyboard across the top and a trackpad centered under it, sized like a laptop's
+ * (about 42% of the keyboard's width). The keyboard is capped in width so keys stay key-sized on big tablets.
+ */
+@Composable
+private fun LaptopDeck(hid: HidUi, modifier: Modifier, keys: @Composable (Modifier) -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.TopCenter) {
+        val deckW = minOf(maxWidth, 1100.dp)
+        // Keys take ~58% of the height (capped so they don't get taller than wide-ish), the pad the rest.
+        val keysH = minOf(maxHeight * 0.58f, deckW * 0.36f)
+        Column(Modifier.width(deckW).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            keys(Modifier.fillMaxWidth().height(keysH))
+            Spacer(Modifier.height(12.dp))
+            FreeSpacePad(hid, Modifier.fillMaxWidth(0.42f).weight(1f).padding(bottom = 4.dp))
+        }
+    }
+}
+
 /** A compact trackpad for space the keyboard doesn't use: same gestures, no hint text. */
 @Composable
 private fun FreeSpacePad(hid: HidUi, modifier: Modifier) {
@@ -541,6 +582,8 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var preview by remember { mutableStateOf(Settings.kbPreview) }
     var predictive by remember { mutableStateOf(Settings.predictiveTyping) }
     var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
+    val tabletLand = isTablet() && landscape
+    var laptop by remember { mutableStateOf(Settings.kbLaptop(landscape, tabletLand)) }
     val icons = mapOf(
         dev.padbridge.KbLayout.FULL to Icons.Rounded.Keyboard,
         dev.padbridge.KbLayout.FULL_NUMPAD to Icons.Rounded.Calculate,
@@ -565,6 +608,12 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 12.dp))
             }
+            item {
+                SheetSwitch("Laptop deck: keyboard with a trackpad below", laptop, 0, 1) {
+                    laptop = it; Settings.setKbLaptop(landscape, it); onChanged()
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             val all = dev.padbridge.KbLayout.entries
             items(all.size) { i ->
                 val l = all[i]
@@ -584,9 +633,14 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                 ) { Text(l.label) }
             }
 
-            item { Text("Size", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+            if (laptop) item {
+                Text("The laptop deck sizes the keyboard and trackpad to the screen.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp))
+            }
+            if (!laptop) item { Text("Size", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
-            item {
+            if (!laptop) item {
                 Column {
                     Text("Width · ${(width * 100).toInt()}%", style = MaterialTheme.typography.bodyLarge)
                     androidx.compose.material3.Slider(
@@ -598,7 +652,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            item {
+            if (!laptop) item {
                 Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     listOf("Left", "Center", "Right").forEachIndexed { i, label ->
@@ -625,7 +679,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                     )
                 }
             }
-            item {
+            if (!laptop) item {
                 androidx.compose.material3.TextButton(onClick = {
                     Settings.setKbHeight(landscape, 0f); Settings.setKbWidth(landscape, 1f); Settings.setKbAlign(landscape, 1)
                     width = 1f; align = 1; onChanged()
@@ -969,8 +1023,8 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
     val back = profile.back
     val home = profile.home(os)
 
-    val landscapeTop = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
-        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // "Short" screens (phones in landscape) get the side-by-side layout; tablets have room for the tall one.
+    val landscapeTop = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 520
     // Profile picker. In landscape it shares the toolbar row, leaving the height to the clickpad.
     val profileChips: @Composable (Modifier) -> Unit = { m ->
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = m) {
@@ -993,7 +1047,9 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
             }
         }
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+    // On tablets the remote stays a remote-sized column in the middle instead of spreading edge to edge.
+    val remoteWidth = if (landscapeTop) Modifier.fillMaxWidth() else Modifier.wrapContentWidth().widthIn(max = 600.dp).fillMaxWidth()
+    Column(Modifier.fillMaxSize().then(remoteWidth).padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
             if (landscapeTop) profileChips(Modifier.weight(1f).padding(horizontal = 8.dp)) else Spacer(Modifier.weight(1f))
@@ -1016,8 +1072,7 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
         // (Back | Home, Play | volume rocker, Mute). No panel, no colored keys: the controls float on the page.
         // Landscape puts the keys beside the clickpad instead of under it.
         val slides = profile == dev.padbridge.RemoteProfile.SLIDES
-        val landscapeNow = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val landscapeNow = landscapeTop
         val key = if (landscapeNow) 52.dp else 64.dp
         val gap = if (landscapeNow) 12.dp else 16.dp
         val clickpad: @Composable (Modifier) -> Unit = { m ->

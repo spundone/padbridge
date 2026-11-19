@@ -71,6 +71,14 @@ object Settings {
         KbLayout.from(p.getString("kbLayout_${o(landscape)}", null), KbLayout.FULL)
     fun setKbLayout(landscape: Boolean, l: KbLayout) = p.edit().putString("kbLayout_${o(landscape)}", l.name).apply()
 
+    /**
+     * Laptop deck: keyboard on top, a centered trackpad below, like a laptop's palm rest. Per orientation;
+     * on by default for tablets in landscape ([tabletLandscape]).
+     */
+    fun kbLaptop(landscape: Boolean, tabletLandscape: Boolean) =
+        if (p.contains("kbLaptop_${o(landscape)}")) p.getBoolean("kbLaptop_${o(landscape)}", false) else tabletLandscape
+    fun setKbLaptop(landscape: Boolean, v: Boolean) = p.edit().putBoolean("kbLaptop_${o(landscape)}", v).apply()
+
     /** Keyboard height in dp; 0 = fill the available space. */
     fun kbHeight(landscape: Boolean) = p.getFloat("kbHeight_${o(landscape)}", 0f)
     fun setKbHeight(landscape: Boolean, v: Float) = p.edit().putFloat("kbHeight_${o(landscape)}", v).apply()

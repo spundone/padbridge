@@ -7,6 +7,30 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [1.1.0] – unreleased
+
+### Added
+- **Laptop deck** keyboard mode: the keyboard across the top with a trackpad centered below it, like a laptop's
+  palm rest (Esc and F-row included, full gesture engine on the pad). Turn it on in the keyboard layout sheet; it is
+  the default on tablets in landscape.
+- **Tablet layouts:**
+  - Tablets keep the navigation rail and top bar in landscape (phones still go edge to edge).
+  - Connect splits into two panes on wide screens: status and computer type | computers and pairing.
+  - Settings is list-detail on wide screens: categories on the left, the open page on the right.
+  - The remote stays remote-sized and centered instead of spreading across the screen; the side-by-side
+    landscape layout is only used on short (phone) screens.
+  - On tablets the keyboard stops at about half the screen width in height so keys stay key-shaped, and the
+    space above becomes trackpad.
+- **Material 3 Expressive motion:**
+  - Switching tabs slides a little toward the tab you picked, on the expressive spring.
+  - Settings pages slide in and back.
+  - The status pill animates its color, size and text when the connection changes.
+  - The Connect status card animates its color and size; its badge turns slowly and pops in with a spring when a
+    computer connects.
+  - Computers in the list animate in and out.
+  - Trackpad taps leave a ring ripple (larger for multi-finger taps).
+  - The Find nearby computers button morphs shape when pressed.
+
 ## [1.0.2] – 2026-11-19
 
 ### Changed

@@ -2,6 +2,9 @@
 
 package dev.padbridge.ui
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.graphicsLayer
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -90,12 +94,11 @@ fun ConnectScreen(
     var nearby by remember { mutableStateOf(false) }
     if (nearby) NearbySheet(hid) { nearby = false }
 
-    LazyColumn(
-        contentPadding = ScreenPadding,
-        verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        item { StatusHero(hid) }
+    // Groups of list items, arranged as one column on phones and two panes on wide screens.
+    val heroItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+        item(key = "hero") { StatusHero(hid) }
+    }
+    val hostItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
         // The navigation bar already switches modes, so no shortcut tiles here. While connected, the
         // status card names the computer and has Disconnect, so the list shows only the others.
         val shown = if (hid.connected) hosts.filterNot { HidManager.sameHost(it, hid.hostAddress, hid.hostName) } else hosts
@@ -118,6 +121,7 @@ fun ConnectScreen(
             val connecting = !connected && hid.connectingAddress != null &&
                 HidManager.sameHost(d, hid.connectingAddress, if (hid.state == State.CONNECTING) hid.hostName else null)
             SegmentedListItem(
+                modifier = Modifier.animateItem(),
                 onClick = { if (!connected) HidManager.connect(d) },
                 shapes = ListItemDefaults.segmentedShapes(i, shown.size),
                 colors = if (connected) ListItemDefaults.segmentedColors(
@@ -162,6 +166,7 @@ fun ConnectScreen(
             Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { nearby = true },
+                    shapes = ButtonDefaults.shapes(),
                     modifier = Modifier.weight(1f).height(ButtonDefaults.MediumContainerHeight),
                     contentPadding = ButtonDefaults.MediumContentPadding,
                 ) {
@@ -196,6 +201,8 @@ fun ConnectScreen(
         }
         item { PairingHelp(phoneName) }
 
+    }
+    val osItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
         item { SectionHeader("Computer type") }
         item { OsSelector(osVersion, onOsChanged) }
         item {
@@ -206,7 +213,24 @@ fun ConnectScreen(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             )
         }
-        item { Gap(24) }
+    }
+    val listArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth >= 840.dp) {
+            // Tablet / unfolded: status and computer type on the left, computers and pairing on the right.
+            Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyColumn(Modifier.weight(0.45f).fillMaxHeight(), contentPadding = ScreenPadding, verticalArrangement = listArrangement) {
+                    heroItems(); osItems(); item { Gap(24) }
+                }
+                LazyColumn(Modifier.weight(0.55f).fillMaxHeight(), contentPadding = ScreenPadding, verticalArrangement = listArrangement) {
+                    hostItems(); item { Gap(24) }
+                }
+            }
+        } else {
+            LazyColumn(contentPadding = ScreenPadding, verticalArrangement = listArrangement, modifier = Modifier.fillMaxWidth()) {
+                heroItems(); hostItems(); osItems(); item { Gap(24) }
+            }
+        }
     }
 }
 
@@ -349,12 +373,31 @@ private fun StatusHero(hid: HidUi) {
         State.UNSUPPORTED -> if (hid.needsBluetoothRestart) "Restart Bluetooth" else "Not supported"
         State.IDLE -> "Stopped"
     }
+    val colorSpec = MaterialTheme.motionScheme.defaultEffectsSpec<androidx.compose.ui.graphics.Color>()
+    val containerA by androidx.compose.animation.animateColorAsState(container, colorSpec, label = "heroBg")
+    val contentA by androidx.compose.animation.animateColorAsState(content, colorSpec, label = "heroFg")
     Card(
         shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = containerA, contentColor = contentA),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
     ) {
         Column(Modifier.padding(24.dp)) {
+            // Live badge: the shape turns slowly (the icon stays upright) and pops in with a spring on connect.
+            val spin by androidx.compose.animation.core.rememberInfiniteTransition(label = "heroSpin").animateFloat(
+                0f, 360f,
+                androidx.compose.animation.core.infiniteRepeatable<Float>(
+                    androidx.compose.animation.core.tween<Float>(if (hid.connected) 14000 else 22000, easing = androidx.compose.animation.core.LinearEasing),
+                ),
+                label = "spin",
+            )
+            val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+            androidx.compose.runtime.LaunchedEffect(hid.connected) {
+                if (hid.connected) {
+                    pop.snapTo(0.55f)
+                    pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 380f))
+                }
+            }
             Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
                 if (busy) {
                     ContainedLoadingIndicator(Modifier.size(72.dp))
@@ -372,7 +415,9 @@ private fun StatusHero(hid: HidUi) {
                             State.READY -> cs.onSecondaryContainer
                             else -> content
                         },
-                        modifier = Modifier.size(72.dp),
+                        modifier = Modifier.size(72.dp).graphicsLayer {
+                            rotationZ = spin; scaleX = pop.value; scaleY = pop.value
+                        },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -382,7 +427,7 @@ private fun StatusHero(hid: HidUi) {
                                     State.BLUETOOTH_OFF -> Icons.Rounded.BluetoothDisabled
                                     else -> Icons.Rounded.ErrorOutline
                                 },
-                                null, Modifier.size(32.dp),
+                                null, Modifier.size(32.dp).graphicsLayer { rotationZ = -spin },
                             )
                         }
                     }

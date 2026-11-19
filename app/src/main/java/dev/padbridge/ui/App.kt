@@ -2,6 +2,7 @@ package dev.padbridge.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -176,7 +177,9 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     // Fullscreen mode, and landscape trackpad / keyboard (as DeX does): the bars would leave only a strip.
     val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
         android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    if (inputDest && (fullscreen || landscape || aodActive)) {
+    // Tablets have room for the rail and top bar in landscape, so only phones drop them.
+    val tablet = isTablet()
+    if (inputDest && (fullscreen || (landscape && !tablet) || aodActive)) {
         BackHandler {
             when {
                 aodActive -> aod = false
@@ -240,6 +243,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     ) { padding ->
         val enterSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
         val exitSpec = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+        val slideSpec = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
         androidx.compose.foundation.layout.Row(Modifier.padding(padding).fillMaxSize()) {
         if (wide) {
             // Tablets / landscape: a rail instead of a bottom bar, so content keeps its height.
@@ -266,7 +270,12 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
         }
         AnimatedContent(
             targetState = dest,
-            transitionSpec = { fadeIn(enterSpec) togetherWith fadeOut(exitSpec) },
+            // Expressive shared-axis: a short slide toward the tab you picked, on the motion scheme's spring.
+            transitionSpec = {
+                val dir = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                (androidx.compose.animation.slideInHorizontally(slideSpec) { w -> dir * w / 8 } + fadeIn(enterSpec)) togetherWith
+                    (androidx.compose.animation.slideOutHorizontally(slideSpec) { w -> -dir * w / 8 } + fadeOut(exitSpec))
+            },
             modifier = Modifier.weight(1f).fillMaxSize(),
             label = "dest",
         ) { d ->
@@ -323,7 +332,13 @@ fun StatusPill(hid: HidUi, onClick: () -> Unit) {
         HidManager.State.READY -> "Not connected"
         else -> "Needs attention"
     }
-    Surface(onClick = onClick, shape = CircleShape, color = bg, contentColor = fg) {
+    val colorSpec = MaterialTheme.motionScheme.defaultEffectsSpec<androidx.compose.ui.graphics.Color>()
+    val bgA by androidx.compose.animation.animateColorAsState(bg, colorSpec, label = "pillBg")
+    val fgA by androidx.compose.animation.animateColorAsState(fg, colorSpec, label = "pillFg")
+    Surface(
+        onClick = onClick, shape = CircleShape, color = bgA, contentColor = fgA,
+        modifier = Modifier.animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec()),
+    ) {
         Row(
             Modifier.padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -334,10 +349,19 @@ fun StatusPill(hid: HidUi, onClick: () -> Unit) {
                 Box(Modifier.size(8.dp).background(fg, CircleShape))
             }
             Spacer(Modifier.width(8.dp))
-            Text(
-                text, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 160.dp),
-            )
+            AnimatedContent(
+                targetState = text,
+                transitionSpec = {
+                    (androidx.compose.animation.slideInVertically { it / 2 } + fadeIn()) togetherWith
+                        (androidx.compose.animation.slideOutVertically { -it / 2 } + fadeOut())
+                },
+                label = "pillText",
+            ) { t ->
+                Text(
+                    t, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 160.dp),
+                )
+            }
         }
     }
 }

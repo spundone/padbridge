@@ -1,9 +1,15 @@
 package dev.padbridge.ui
 
+import androidx.compose.animation.togetherWith
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -105,34 +111,28 @@ fun SettingsScreen(
     }
     val ctx = LocalContext.current
     var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
-    androidx.activity.compose.BackHandler(enabled = page != null) { page = null }
+    androidx.activity.compose.BackHandler(enabled = page != null && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 840) { page = null }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var osVersion by remember { mutableIntStateOf(0) }
     var gestureVersion by remember { mutableIntStateOf(0) }
     var picking by remember { mutableStateOf<GestureSlot?>(null) }
     val os = remember(osVersion) { Settings.hostOs }
+    // Tablets: list-detail, categories on the left and the open page on the right.
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
+    val shown = if (wide) (page ?: SettingsPage.TRACKPAD) else page
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
-        topBar = {
-            LargeFlexibleTopAppBar(
-                title = { Text(page?.title ?: "Settings") },
-                subtitle = { Text(page?.subtitle?.invoke(os) ?: "PadBridge for ${os.label}") },
-                navigationIcon = {
-                    IconButton(onClick = { if (page != null) page = null else onBack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
-                    }
-                },
-                scrollBehavior = scroll,
-            )
-        },
-    ) { padding ->
+    val pageList: @Composable (SettingsPage?, Modifier) -> Unit = { shown, modifier ->
         LazyColumn(
             contentPadding = ScreenPadding,
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
-            modifier = Modifier.padding(padding).fillMaxWidth(),
+            modifier = modifier,
         ) {
-            when (page) {
+            // Two-pane: the top bar says "Settings", so the page names itself here.
+            if (wide && shown != null) item {
+                Text(shown.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+            }
+            when (shown) {
                 null -> {
                     item { SettingsCategories(os, onOpen = { page = it }) }
                 }
@@ -299,7 +299,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (page == null) item {
+            if (shown == null) item {
                 Text(
                     "PadBridge ${activity.versionName()} · HID descriptor v${HidDescriptor.VERSION} · ${hid.state.name.lowercase()}",
                     style = MaterialTheme.typography.labelSmall,
@@ -309,6 +309,60 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+
+    // Pages slide in from the side (deeper) or back (to the list), on the expressive spring.
+    val slide = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+    val fadeIn = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val fadeOut = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    val animatedPages: @Composable (SettingsPage?, Modifier) -> Unit = { target, m ->
+        androidx.compose.animation.AnimatedContent(
+            targetState = target,
+            transitionSpec = {
+                val dir = when {
+                    initialState == null -> 1
+                    targetState == null -> -1
+                    else -> if (targetState!!.ordinal >= initialState!!.ordinal) 1 else -1
+                }
+                (androidx.compose.animation.slideInHorizontally(slide) { w -> dir * w / 6 } + androidx.compose.animation.fadeIn(fadeIn)) togetherWith
+                    (androidx.compose.animation.slideOutHorizontally(slide) { w -> -dir * w / 6 } + androidx.compose.animation.fadeOut(fadeOut))
+            },
+            modifier = m,
+            label = "settingsPage",
+        ) { pg -> pageList(pg, Modifier.fillMaxSize()) }
+    }
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        topBar = {
+            LargeFlexibleTopAppBar(
+                title = { Text(if (wide) "Settings" else page?.title ?: "Settings") },
+                subtitle = { Text(if (wide) "PadBridge for ${os.label}" else page?.subtitle?.invoke(os) ?: "PadBridge for ${os.label}") },
+                navigationIcon = {
+                    IconButton(onClick = { if (page != null && !wide) page = null else onBack() }) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                },
+                scrollBehavior = scroll,
+            )
+        },
+    ) { padding ->
+        if (wide) Row(Modifier.padding(padding).fillMaxSize().padding(horizontal = 8.dp)) {
+            Column(
+                Modifier.width(360.dp).fillMaxHeight()
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(ScreenPadding),
+            ) {
+                SettingsCategories(os, selected = shown, onOpen = { page = it })
+                Text(
+                    "PadBridge ${activity.versionName()} · HID descriptor v${HidDescriptor.VERSION} · ${hid.state.name.lowercase()}",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+            Box(Modifier.weight(1f).fillMaxHeight()) { animatedPages(shown, Modifier.fillMaxSize()) }
+        } else animatedPages(shown, Modifier.padding(padding).fillMaxWidth())
     }
 
     picking?.let { slot ->
@@ -561,14 +615,18 @@ enum class SettingsPage(
 }
 
 @Composable
-private fun SettingsCategories(os: dev.padbridge.HostOs, onOpen: (SettingsPage) -> Unit) {
+private fun SettingsCategories(os: dev.padbridge.HostOs, selected: SettingsPage? = null, onOpen: (SettingsPage) -> Unit) {
     val pages = SettingsPage.entries
     Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap), modifier = Modifier.padding(top = 8.dp)) {
         pages.forEachIndexed { i, p ->
             SegmentedListItem(
                 onClick = { onOpen(p) },
                 shapes = ListItemDefaults.segmentedShapes(i, pages.size),
-                colors = segColors(),
+                colors = if (p == selected) ListItemDefaults.segmentedColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    supportingContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ) else segColors(),
                 leadingContent = {
                     androidx.compose.material3.Surface(
                         shape = androidx.compose.foundation.shape.CircleShape,

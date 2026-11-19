@@ -422,6 +422,7 @@ class TrackpadView(ctx: Context) : View(ctx) {
             dragging = false
             lastTapUp = 0L
         } else if (!moved && mode == Mode.NONE && duration < tapMaxDuration * (if (maxPointers > 1) 1.4f else 1f)) {
+            if (maxPointers == 1 && Settings.tapToClick || maxPointers > 1) ripple(e.x, e.y, maxPointers)
             when (maxPointers) {
                 1 -> if (Settings.tapToClick) {
                     HidManager.click(BTN_LEFT); Haptics.tick()
@@ -540,6 +541,32 @@ class TrackpadView(ctx: Context) : View(ctx) {
         return 0f
     }
 
+    // Tap ripples: a ring that grows and fades where a tap registered (bigger for multi-finger taps).
+    private class Ripple(val x: Float, val y: Float, val start: Long, val size: Float)
+    private val ripples = ArrayList<Ripple>()
+    private val ripplePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val rippleMs = 420L
+
+    private fun ripple(x: Float, y: Float, fingers: Int) {
+        if (C.AOD) return
+        ripples.add(Ripple(x, y, SystemClock.uptimeMillis(), (if (fingers > 1) 64f else 44f) * density))
+        postInvalidateOnAnimation()
+    }
+
+    private fun drawRipples(c: Canvas) {
+        val now = SystemClock.uptimeMillis()
+        ripples.removeAll { now - it.start > rippleMs }
+        for (rp in ripples) {
+            val t = (now - rp.start) / rippleMs.toFloat()
+            val ease = 1f - (1f - t) * (1f - t) * (1f - t) // ease-out cubic
+            ripplePaint.color = C.ACCENT
+            ripplePaint.alpha = ((1f - t) * 160).toInt()
+            ripplePaint.strokeWidth = (3f - 2f * t) * density
+            c.drawCircle(rp.x, rp.y, rp.size * (0.35f + 0.65f * ease), ripplePaint)
+        }
+        if (ripples.isNotEmpty()) postInvalidateOnAnimation()
+    }
+
     override fun onDraw(c: Canvas) {
         val r = cornerRadius()
         rect.set(0f, 0f, width.toFloat(), height.toFloat())
@@ -585,6 +612,8 @@ class TrackpadView(ctx: Context) : View(ctx) {
             fingerPaint.alpha = if (resting) 90 else 255
             c.drawCircle(p.x, p.y, 9 * density, fingerPaint)
         }
+
+        drawRipples(c)
 
         val l = label
         if (l != null && SystemClock.uptimeMillis() < labelUntil) {
