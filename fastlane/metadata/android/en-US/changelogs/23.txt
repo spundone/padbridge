@@ -1,0 +1,2 @@
+• In-app updates: when a new version is on Google Play, PadBridge offers it on the Connect tab and installs it in the background.
+• Pairing with TVs, phones and tablets is more reliable, and paired TVs now show in the Connect list.

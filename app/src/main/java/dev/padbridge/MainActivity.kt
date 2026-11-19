@@ -82,11 +82,14 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
         HidManager.start(this)
     }
 
+    private var updateChecked = false
+
     override fun onResume() {
         super.onResume()
         HidManager.addListener(this)
         onHidChanged()
         if (Perms.hasConnect(this)) { HidService.start(this); HidManager.restart(this) }
+        if (!updateChecked && Settings.setupDone) { updateChecked = true; Updater.autoCheck(this) }
         else if (Settings.setupDone) HidManager.start(this) // shows "Permission needed"
     }
 

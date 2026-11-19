@@ -32,6 +32,8 @@ import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.DesktopWindows
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Gesture
@@ -96,6 +98,7 @@ fun ConnectScreen(
 
     // Groups of list items, arranged as one column on phones and two panes on wide screens.
     val heroItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+        item(key = "update") { UpdateBanner() }
         item(key = "hero") { StatusHero(hid) }
     }
     val hostItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
@@ -103,7 +106,7 @@ fun ConnectScreen(
         // status card names the computer and has Disconnect, so the list shows only the others.
         val shown = if (hid.connected) hosts.filterNot { HidManager.sameHost(it, hid.hostAddress, hid.hostName) } else hosts
 
-        if (shown.isNotEmpty() || !hid.connected) item { SectionHeader(if (hid.connected) "Other computers" else "Computers") }
+        if (shown.isNotEmpty() || !hid.connected) item { SectionHeader(if (hid.connected) "Other devices" else "Paired devices") }
         if (hosts.isEmpty()) {
             item {
                 SegmentedListItem(
@@ -111,8 +114,8 @@ fun ConnectScreen(
                     shapes = ListItemDefaults.segmentedShapes(0, 1),
                     colors = segColors(),
                     leadingContent = { Icon(Icons.Outlined.Info, null) },
-                    supportingContent = { Text("Pair a computer to see it here.") },
-                ) { Text("No paired computers yet") }
+                    supportingContent = { Text("Pair a computer, TV or tablet to see it here.") },
+                ) { Text("Nothing paired yet") }
             }
         }
         itemsIndexed(shown, key = { _, d -> d.address }) { i, d ->
@@ -136,7 +139,7 @@ fun ConnectScreen(
                         color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = if (connected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(44.dp),
-                    ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Computer, null) } }
+                    ) { Box(contentAlignment = Alignment.Center) { Icon(hostIcon(d), null) } }
                 },
                 supportingContent = {
                     Text(
@@ -172,7 +175,7 @@ fun ConnectScreen(
                 ) {
                     Icon(Icons.Rounded.Search, null, Modifier.size(ButtonDefaults.MediumIconSize))
                     Spacer(Modifier.width(ButtonDefaults.MediumIconSpacing))
-                    Text("Find nearby computers", style = ButtonDefaults.textStyleFor(ButtonDefaults.MediumContainerHeight))
+                    Text("Find nearby devices", style = ButtonDefaults.textStyleFor(ButtonDefaults.MediumContainerHeight))
                 }
                 Spacer(Modifier.width(8.dp))
                 FilledTonalIconButton(
@@ -185,6 +188,7 @@ fun ConnectScreen(
             androidx.compose.material3.TextButton(
                 onClick = {
                     try {
+                        HidManager.openPairingWindow()
                         ctx.startActivity(
                             Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
                                 .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
@@ -196,7 +200,7 @@ fun ConnectScreen(
             ) {
                 Icon(Icons.Rounded.Visibility, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Or make this phone visible and pair from the computer")
+                Text("Or make this phone visible and pair from the other device")
             }
         }
         item { PairingHelp(phoneName) }
@@ -245,17 +249,18 @@ internal fun NearbySheet(hid: HidUi, onDismiss: () -> Unit) {
         if (permitted) HidManager.startDiscovery()
     }
     androidx.compose.runtime.LaunchedEffect(Unit) {
+        HidManager.openPairingWindow()
         if (permitted) HidManager.startDiscovery() else launcher.launch(dev.padbridge.Perms.scan())
     }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { HidManager.stopDiscovery() } }
 
-    // Computers first, then other named devices; skip nameless ones (usually phones' random addresses).
+    // Computers, TVs and phones first, then other named devices; skip nameless ones (usually random addresses).
     val devices = remember(hid.version) {
         HidManager.found.toList()
             // Classic only: the HID Device profile can't use LE-only entries (Windows also advertises over LE).
             .filter { HidManager.isClassic(it) }
-            .filter { HidManager.name(it) != it.address || HidManager.isComputer(it) }
-            .sortedWith(compareBy({ !HidManager.isComputer(it) }, { HidManager.name(it).lowercase() }))
+            .filter { HidManager.name(it) != it.address || HidManager.isComputer(it) || HidManager.isTv(it) }
+            .sortedWith(compareBy({ !HidManager.isComputer(it) && !HidManager.isTv(it) && !HidManager.isPhone(it) }, { HidManager.name(it).lowercase() }))
     }
 
     androidx.compose.material3.ModalBottomSheet(
@@ -269,13 +274,13 @@ internal fun NearbySheet(hid: HidUi, onDismiss: () -> Unit) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Nearby computers", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Nearby devices", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         Text(
                             when (dev.padbridge.Settings.hostOs) {
                                 HostOs.WINDOWS -> "On the PC, open Settings › Bluetooth & devices and keep it open so the PC is visible."
                                 HostOs.MAC -> "On the Mac, open System Settings › Bluetooth and keep it open."
                                 HostOs.LINUX -> "Make the computer discoverable (e.g. open its Bluetooth settings)."
-                            },
+                            } + " TV or tablet: open its Bluetooth or accessory pairing screen.",
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -290,13 +295,13 @@ internal fun NearbySheet(hid: HidUi, onDismiss: () -> Unit) {
                         modifier = Modifier.padding(bottom = 8.dp))
                 }
                 if (!permitted) {
-                    Text("PadBridge needs the Nearby devices permission to look for computers.",
+                    Text("PadBridge needs the Nearby devices permission to look for devices.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
             }
             if (devices.isEmpty() && permitted) item {
                 Text(
-                    if (hid.discovering) "Looking…" else "Nothing found. Check the computer is visible, then scan again.",
+                    if (hid.discovering) "Looking…" else "Nothing found. Check the device is visible, then scan again, or make this phone visible and pair from the device.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(8.dp),
                 )
@@ -310,13 +315,13 @@ internal fun NearbySheet(hid: HidUi, onDismiss: () -> Unit) {
                     shapes = ListItemDefaults.segmentedShapes(i, devices.size),
                     colors = segColors(),
                     leadingContent = {
-                        Icon(if (computer) Icons.Rounded.Computer else Icons.Rounded.Bluetooth, null)
+                        Icon(hostIcon(d, Icons.Rounded.Bluetooth), null)
                     },
                     supportingContent = { Text(if (bonded) "Paired · ${d.address}" else d.address) },
                     trailingContent = {
                         FilledTonalButton(onClick = { HidManager.pairAndConnect(d) }) { Text(if (bonded) "Connect" else "Pair") }
                     },
-                ) { Text(HidManager.name(d), fontWeight = if (computer) FontWeight.SemiBold else FontWeight.Normal) }
+                ) { Text(HidManager.name(d), fontWeight = if (computer || HidManager.isTv(d)) FontWeight.SemiBold else FontWeight.Normal) }
             }
         }
     }
@@ -475,9 +480,12 @@ private fun PairingHelp(phoneName: String) {
         androidx.compose.animation.AnimatedVisibility(open) {
             Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
-                    "Find nearby computers pairs from the phone, then connects the trackpad and keyboard. Keep the " +
-                        "computer's Bluetooth settings open while it scans, and accept the prompt on both screens.",
-                    "Or make this phone visible and add “$phoneName” from the computer's Bluetooth settings.",
+                    "Find nearby devices pairs from the phone, then connects the trackpad and keyboard. Keep the " +
+                        "other device's Bluetooth settings open while it scans, and accept the prompt on both screens.",
+                    "Or make this phone visible and add “$phoneName” from the other device's Bluetooth settings.",
+                    "TVs: make this phone visible, then add it from the TV's own Bluetooth or “Remotes & accessories” " +
+                        "menu. Many TVs pair with a phone but refuse it as a keyboard unless the TV added it. If the TV " +
+                        "doesn't list the phone, it only accepts real keyboards and remotes.",
                     "Windows: if it pairs but the trackpad doesn't work, open Control Panel › Devices and Printers, " +
                         "right-click “$phoneName” › Properties › Services and tick “Drivers for keyboard, mice, etc. (HID)”.",
                     "Paired before PadBridge was installed (for example via Phone Link)? Remove the pairing on both " +
@@ -488,4 +496,12 @@ private fun PairingHelp(phoneName: String) {
             }
         }
     }
+}
+
+@Composable
+private fun hostIcon(d: android.bluetooth.BluetoothDevice, fallback: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.Computer) = when {
+    HidManager.isComputer(d) -> Icons.Rounded.Computer
+    HidManager.isTv(d) -> Icons.Rounded.Tv
+    HidManager.isPhone(d) -> Icons.Rounded.Smartphone
+    else -> fallback
 }

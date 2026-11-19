@@ -5,8 +5,9 @@ GitHub builds.*
 
 ## Summary
 
-PadBridge does not collect, store on a server, share or sell any personal data. It has no internet access, no
-analytics, no advertising, no crash-reporting service and no accounts.
+PadBridge does not collect, store on a server, share or sell any personal data. It has no analytics, no advertising,
+no crash-reporting service and no accounts. The Google Play build has no internet access at all. The GitHub build
+connects to GitHub only to check for and download app updates (see [Updates](#updates)).
 
 ## What PadBridge does with your input
 
@@ -45,7 +46,26 @@ PadBridge or clearing its storage deletes it.
 PadBridge reads the gyroscope, gravity and accelerometer sensors for the air mouse and gamepad gyro modes, only
 while those screens are open. Sensor data is turned into pointer or stick movement and is not stored.
 
-PadBridge does **not** request the `INTERNET` permission, so it cannot send data over the network.
+The Google Play build does **not** request the `INTERNET` permission, so it cannot send data over the network.
+
+The GitHub build additionally requests:
+
+| Permission | Why |
+|---|---|
+| `INTERNET` | Check GitHub for a newer release and download it. Nothing else is sent or received. |
+| `REQUEST_INSTALL_PACKAGES`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION` | Hand the downloaded update to Android's installer. Android asks you to confirm unless PadBridge installed the current version itself. |
+
+## Updates
+
+- **Google Play build:** updates come from Google Play through Play's in-app update API. PadBridge asks the Play
+  Store app on your phone whether a newer version exists; PadBridge itself makes no network connection.
+- **GitHub build:** when you open the app (at most once a day, and only if **Check for updates automatically** is
+  on) or when you tap **Check for updates**, PadBridge requests
+  `https://api.github.com/repos/spundone/padbridge/releases/latest`. If you tap **Update**, it downloads the release
+  APK from GitHub, checks its SHA-256 checksum against the one GitHub publishes and checks it is signed with the same
+  key as the installed app, then passes it to Android's installer. These requests carry no personal data or
+  identifiers beyond what any HTTPS request reveals (your IP address and a generic `PadBridge-Android` user agent),
+  and are subject to [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 
 ## Your phone keyboard
 

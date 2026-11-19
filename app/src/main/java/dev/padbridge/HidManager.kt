@@ -257,6 +257,18 @@ object HidManager {
     /** The last connect attempt was refused by the computer right away (see [refusalHint]). */
     @Volatile var hostRefused = false; private set
 
+    /**
+     * TVs often bond fine but hang up on the HID channel within a second: many only accept keyboards and mice that
+     * were added from their own accessory menu, and that menu lists only devices whose Bluetooth class is a
+     * keyboard, mouse or remote, which hides a phone.
+     */
+    private fun tvRefusalHint(d: BluetoothDevice): String =
+        "${name(d)} paired, but it hangs up when PadBridge opens the keyboard and mouse connection. Many TVs only " +
+            "accept keyboards added from their own menu: remove the pairing on both sides, make this phone visible, " +
+            "then add it from the TV's Bluetooth or accessory settings. If the TV doesn't list the phone there, it " +
+            "only accepts real keyboards, mice and remotes" +
+            (if (BuildConfig.ROOT_FEATURES) " (root mode can make the phone present as one)." else ".")
+
     private fun refusalHint(): String = when (Settings.hostOs) {
         HostOs.WINDOWS ->
             "Windows has HID turned off for this phone. On the PC open Control Panel › Devices and Printers, " +
@@ -293,28 +305,60 @@ object HidManager {
                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> { discovering = false; notifyChanged() }
                 BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
                     val d = deviceFrom(i) ?: return
-                    if (d.address != pairingTarget?.address) { notifyChanged(); return }
-                    when (i.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)) {
+                    val bond = i.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)
+                    if (d.address != pairingTarget?.address) {
+                        // Paired from the other side (a TV's or phone's Bluetooth settings) while the user is
+                        // pairing in PadBridge: remember it, and connect if the host doesn't open HID itself.
+                        if (bond == BluetoothDevice.BOND_BONDED && android.os.SystemClock.uptimeMillis() < pairingWindowUntil) {
+                            Settings.addKnownHost(d.address)
+                            main.postDelayed({ if (host == null && connectingTo == null) connect(d) }, 4000)
+                        }
+                        notifyChanged(); return
+                    }
+                    when (bond) {
                         BluetoothDevice.BOND_BONDING ->
                             setState(State.CONNECTING, "Pairing with ${name(d)}: confirm the same code on both screens.")
                         BluetoothDevice.BOND_BONDED -> {
                             pairingTarget = null
+                            main.removeCallbacks(bondTimeout)
+                            Settings.addKnownHost(d.address)
                             setState(State.CONNECTING, "Paired with ${name(d)}. Connecting trackpad and keyboard…")
-                            // Give the host a moment to finish reading the HID record before connecting.
-                            main.postDelayed({ connect(d) }, 2000)
+                            // Give the host a moment to finish reading the HID record, and to connect in by itself
+                            // (TVs and phones usually do); connect() is a no-op once it has.
+                            main.postDelayed({ if (host?.address != d.address) connect(d) }, 2500)
                         }
                         BluetoothDevice.BOND_NONE -> {
                             pairingTarget = null
-                            setState(
-                                State.READY,
-                                "Pairing with ${name(d)} didn't complete. Keep the computer's Bluetooth settings open, " +
-                                    "accept the prompt on the computer, then try again."
-                            )
+                            main.removeCallbacks(bondTimeout)
+                            setState(State.READY, pairingFailed(d))
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun pairingFailed(d: BluetoothDevice) = when {
+        isTv(d) -> "Pairing with ${name(d)} didn't complete. Keep the TV on its Bluetooth or accessory pairing screen, " +
+            "accept the prompt on the TV, then try again."
+        isComputer(d) -> "Pairing with ${name(d)} didn't complete. Keep the computer's Bluetooth settings open, " +
+            "accept the prompt on the computer, then try again."
+        else -> "Pairing with ${name(d)} didn't complete. Keep its Bluetooth settings open, accept the prompt on it, then try again."
+    }
+
+    /** Until when a bond made from the other side counts as a PadBridge pairing (sheet open or phone made visible). */
+    @Volatile private var pairingWindowUntil = 0L
+    fun openPairingWindow(ms: Long = 5 * 60_000L) {
+        ensureDiscoveryReceiver()
+        pairingWindowUntil = android.os.SystemClock.uptimeMillis() + ms
+    }
+
+    /** Some hosts never answer the pairing request; the stack can sit in BONDING for a long time. */
+    private val bondTimeout = Runnable {
+        val d = pairingTarget ?: return@Runnable
+        if (d.bondState != BluetoothDevice.BOND_BONDING) return@Runnable
+        pairingTarget = null
+        setState(State.READY, pairingFailed(d))
     }
 
     private fun ensureDiscoveryReceiver() {
@@ -355,19 +399,66 @@ object HidManager {
     /** Pair from the phone (if needed) and connect HID. */
     fun pairAndConnect(d: BluetoothDevice) {
         ensureDiscoveryReceiver()
-        stopDiscovery()
+        openPairingWindow()
         if (!isClassic(d)) {
-            setState(State.READY, "${name(d)} was found over Bluetooth LE only. Keep the computer's Bluetooth settings open and scan again for its classic entry.")
+            stopDiscovery()
+            setState(State.READY, "${name(d)} was found over Bluetooth LE only. Keep its Bluetooth settings open and scan again for its classic entry.")
             return
         }
-        if (d.bondState == BluetoothDevice.BOND_BONDED) { connect(d); return }
+        if (d.bondState == BluetoothDevice.BOND_BONDED) { stopDiscovery(); connect(d); return }
         pairingTarget = d
         setState(State.CONNECTING, "Pairing with ${name(d)}…")
+        // Bonding while inquiry is still running fails or stalls on many stacks (the radio is busy scanning), and
+        // cancelDiscovery() is asynchronous, so wait until the scan has really stopped.
+        val a = adapter
+        val scanning = try { a?.isDiscovering == true } catch (_: SecurityException) { false }
+        stopDiscovery()
+        main.postDelayed({ startBond(d) }, if (scanning) 800L else 0L)
+    }
+
+    private fun startBond(d: BluetoothDevice) {
+        if (pairingTarget?.address != d.address) return
         val ok = try { d.createBond() } catch (e: SecurityException) { false }
         if (!ok) {
             pairingTarget = null
-            setState(State.READY, "Couldn't start pairing with ${name(d)}. Make sure it's discoverable and try again.")
+            setState(State.READY, "Couldn't start pairing with ${name(d)}. Make sure it's visible and try again.")
+            return
         }
+        main.removeCallbacks(bondTimeout)
+        main.postDelayed(bondTimeout, 45_000)
+    }
+
+    private fun major(d: BluetoothDevice): Int? = try { d.bluetoothClass?.majorDeviceClass } catch (_: SecurityException) { null }
+
+    private val tvName = Regex("\\b(tv|television|bravia|firestick|fire tv|chromecast|shield|roku|tizen|webos)\\b")
+
+    /** Televisions, displays, set-top boxes and streaming sticks (not headphones or speakers). */
+    fun isTv(d: BluetoothDevice): Boolean = try {
+        val c = d.bluetoothClass ?: return false
+        // Some TVs misreport their minor class (one MediaTek TV says "car audio"), so trust a TV-ish name too.
+        val n = name(d).lowercase()
+        if (c.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO &&
+            tvName.containsMatchIn(n)) return true
+        c.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO && when (c.deviceClass) {
+            BluetoothClass.Device.AUDIO_VIDEO_VIDEO_DISPLAY_AND_LOUDSPEAKER,
+            BluetoothClass.Device.AUDIO_VIDEO_VIDEO_MONITOR,
+            BluetoothClass.Device.AUDIO_VIDEO_SET_TOP_BOX,
+            BluetoothClass.Device.AUDIO_VIDEO_VCR,
+            BluetoothClass.Device.AUDIO_VIDEO_VIDEO_CONFERENCING,
+            BluetoothClass.Device.AUDIO_VIDEO_VIDEO_GAMING_TOY,
+            BluetoothClass.Device.AUDIO_VIDEO_UNCATEGORIZED -> true
+            else -> false
+        }
+    } catch (_: SecurityException) { false }
+
+    fun isPhone(d: BluetoothDevice) = major(d) == BluetoothClass.Device.Major.PHONE
+
+    /** Something that can act as an HID host: computers, TVs, phones and tablets, or anything that has been one. */
+    fun isHostLike(d: BluetoothDevice): Boolean {
+        val m = major(d)
+        return m == BluetoothClass.Device.Major.COMPUTER || m == BluetoothClass.Device.Major.UNCATEGORIZED ||
+            m == BluetoothClass.Device.Major.MISC || m == BluetoothClass.Device.Major.PHONE || m == null ||
+            isTv(d) || d.address == Settings.lastHost || d.address in Settings.knownHosts
     }
 
     fun isComputer(d: BluetoothDevice) = try {
@@ -379,11 +470,7 @@ object HidManager {
     fun bondedHosts(showAll: Boolean): List<BluetoothDevice> {
         val a = adapter ?: return emptyList()
         val all = try { a.bondedDevices?.toList() ?: emptyList() } catch (e: SecurityException) { emptyList() }
-        val filtered = if (showAll) all else all.filter {
-            val major = it.bluetoothClass?.majorDeviceClass
-            major == BluetoothClass.Device.Major.COMPUTER || major == BluetoothClass.Device.Major.UNCATEGORIZED ||
-                major == BluetoothClass.Device.Major.MISC || it.address == Settings.lastHost
-        }
+        val filtered = if (showAll) all else all.filter { isHostLike(it) }
         // One row per computer: a PC can be bonded twice (classic + an LE bond whose identity resolves to the same
         // machine, e.g. Windows found over BLE). Keep the classic entry, which is the one HID uses.
         val deduped = filtered.groupBy { name(it) }.values.map { same ->
@@ -495,6 +582,7 @@ object HidManager {
                 BluetoothProfile.STATE_CONNECTED -> {
                     host = device; connectingTo = null; connectRetries = 0; connectAttempt++
                     Settings.lastHost = device.address
+                    Settings.addKnownHost(device.address)
                     resetReportState()
                     setState(State.CONNECTED, "Connected to ${name(device)}")
                 }
@@ -527,6 +615,7 @@ object HidManager {
                             setState(
                                 State.READY,
                                 when {
+                                    refused && !isComputer(device) -> tvRefusalHint(device)
                                     refused -> "${name(device)} refused the trackpad and keyboard connection. " + refusalHint()
                                     noAnswer -> notAnswering(device)
                                     else -> "Disconnected from ${name(device)}"

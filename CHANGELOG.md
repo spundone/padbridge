@@ -7,6 +7,32 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [1.2.0] – 2026-11-19
+
+### Added
+- **In-app updates.**
+  - GitHub build: checks GitHub releases once a day (or from Settings › About › Check for updates), shows a
+    banner on the Connect tab with the release notes, downloads the APK, verifies its SHA-256 checksum and signing
+    key, and installs it. A notification brings you back after the update. The daily check can be turned off. This
+    adds the `INTERNET` and install permissions to the GitHub build only.
+  - Play build: Google Play in-app updates (flexible): Play downloads in the background, then **Restart** applies
+    it. The Play build still has no internet permission.
+
+### Fixed
+- **Pairing with TVs, phones and tablets:**
+  - Paired TVs, set-top boxes, phones and tablets now show in the Connect list (it used to show computers only,
+    so a TV vanished after pairing). Anything PadBridge has paired with or connected to is always listed, with a
+    matching icon.
+  - Pairing from the phone waits for the scan to stop before bonding; bonding during a scan failed or stalled on
+    many phones.
+  - A pairing request the other device never answers now gives up after 45 s with advice, instead of hanging.
+  - When a TV or phone pairs from its own Bluetooth settings while PadBridge's pairing screen is open (or the phone
+    was just made visible), PadBridge connects the trackpad and keyboard itself if the other side doesn't.
+  - "Find nearby devices" lists TVs and phones next to computers, with TV pairing tips.
+  - When a TV pairs but hangs up on the keyboard and mouse connection (common: many TVs accept keyboards only from
+    their own accessory menu), PadBridge now says so and explains the TV-side pairing route instead of the
+    computer advice. TVs that misreport their Bluetooth class are recognized by name.
+
 ## [1.1.0] – 2026-11-19
 
 ### Added

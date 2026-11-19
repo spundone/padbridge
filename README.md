@@ -7,8 +7,8 @@ PadBridge turns an Android phone into a Bluetooth **trackpad, keyboard, TV-remot
 for Windows, macOS, Linux and TVs.
 
 It uses Android's built-in Bluetooth HID Device profile (`BluetoothHidDevice`, Android 9+). The computer sees an
-ordinary Bluetooth keyboard and mouse, so it needs no app, driver or server. PadBridge has no internet permission
-and collects no data.
+ordinary Bluetooth keyboard and mouse, so it needs no app, driver or server. PadBridge collects no data; the Play
+build has no internet permission, and the GitHub build uses the internet only to check GitHub for updates.
 
 > **Status:** 1.0. Pairing and input are verified on a Mac and a Windows 11 PC from a Xiaomi 14 (Android 17).
 > Other combinations should work but are untested; see [Known limits](#known-limits).
@@ -97,8 +97,11 @@ again. Computers cache a device's services at pairing time.
 
 ## Privacy
 
-PadBridge has no internet permission, no analytics and no accounts. What you type and touch is sent only over
-Bluetooth to the computer you connect. Details in [PRIVACY.md](PRIVACY.md).
+PadBridge has no analytics and no accounts. What you type and touch is sent only over Bluetooth to the computer you
+connect. The Play build has no internet permission (Google Play delivers its updates). The GitHub build updates
+itself: once a day (or when you tap **Check for updates**) it asks GitHub for the latest release and, if you choose
+to update, downloads that APK from GitHub. You can turn the daily check off in Settings › About. Details in
+[PRIVACY.md](PRIVACY.md).
 
 ## License
 

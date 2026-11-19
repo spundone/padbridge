@@ -178,9 +178,32 @@ object Settings {
         get() = p.getString("gamepadStyle", "xbox") ?: "xbox"
         set(v) = p.edit().putString("gamepadStyle", v).apply()
 
+    /** GitHub build: look for a new release at most once a day when the app opens. Play builds use the Play Store. */
+    var autoUpdateCheck: Boolean
+        get() = bool("autoUpdateCheck", true)
+        set(v) = putBool("autoUpdateCheck", v)
+
+    var lastUpdateCheck: Long
+        get() = p.getLong("lastUpdateCheck", 0L)
+        set(v) = p.edit().putLong("lastUpdateCheck", v).apply()
+
+    /** A version the user dismissed; the banner stays hidden until a newer one appears. */
+    var skippedUpdate: String?
+        get() = p.getString("skippedUpdate", null)
+        set(v) = p.edit().putString("skippedUpdate", v).apply()
+
     var lastHost: String?
         get() = p.getString("lastHost", null)
         set(v) = p.edit().putString("lastHost", v).apply()
+
+    /** Hosts PadBridge has paired with or connected to, whatever their Bluetooth class (TVs, phones, tablets). */
+    val knownHosts: Set<String>
+        get() = p.getStringSet("knownHosts", emptySet())!!.toSet()
+
+    fun addKnownHost(address: String) {
+        val now = knownHosts
+        if (address !in now) p.edit().putStringSet("knownHosts", now + address).apply()
+    }
 
     fun gesture(slot: GestureSlot, os: HostOs = hostOs): GAction =
         GAction.from(p.getString("g_${os.name}_${slot.name}", null)) ?: GAction.default(os, slot)

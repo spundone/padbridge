@@ -285,12 +285,13 @@ private fun PairStep(hid: HidUi) {
         },
     )
     Button(onClick = { nearby = true }, modifier = Modifier.fillMaxWidth().height(ButtonDefaults.MediumContainerHeight)) {
-        Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp)); Text("Find nearby computers")
+        Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp)); Text("Find nearby devices")
     }
     Spacer(Modifier.height(8.dp))
     FilledTonalButton(
         onClick = {
             try {
+                HidManager.openPairingWindow()
                 ctx.startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300))
             } catch (_: Exception) {}
         },

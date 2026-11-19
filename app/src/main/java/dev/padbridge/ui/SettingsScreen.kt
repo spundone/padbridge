@@ -281,6 +281,16 @@ fun SettingsScreen(
                 SettingsPage.ABOUT -> {
                     item { Gap(8) }
                     item { AboutSection(activity) }
+                    item {
+                        Column(Modifier.padding(top = 16.dp)) {
+                            SwitchRow(
+                                "Check for updates automatically",
+                                if (dev.padbridge.Updater.SOURCE == "Google Play") "Ask Google Play when the app opens"
+                                else "Once a day, from GitHub releases. The only time PadBridge uses the internet",
+                                0, 1, Settings.autoUpdateCheck,
+                            ) { Settings.autoUpdateCheck = it }
+                        }
+                    }
 
                     item {
                         Button(
@@ -522,6 +532,7 @@ private fun AboutSection(activity: MainActivity) {
     } catch (_: Exception) {}
     val rows = listOf(
         Triple("PadBridge ${activity.versionName()}", "${dev.padbridge.BuildConfig.DIST} build · HID descriptor v${HidDescriptor.VERSION}") { },
+        Triple("Check for updates", updateSubtitle(dev.padbridge.Updates.state)) { onUpdateRowClick(activity) },
         Triple("Source code", "github.com/spundone/padbridge") { open(REPO_URL) },
         Triple("Report a problem", "Open an issue on GitHub") { open("$REPO_URL/issues/new") },
         Triple("License", "Apache License 2.0") { open("$REPO_URL/blob/main/LICENSE") },

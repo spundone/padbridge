@@ -12,7 +12,7 @@ ROMs do. Some custom ROMs turn it off; PadBridge then shows *Not supported*.
 
 ### Does it work over USB or Wi-Fi?
 
-No. PadBridge uses Bluetooth only, and has no internet permission.
+No. Input goes over Bluetooth only. (The GitHub build uses the internet just to check for updates.)
 
 ### Does it work with Bluetooth LE-only computers?
 
@@ -89,7 +89,9 @@ off. Use **Stop PadBridge** in Settings or the notification to stop it entirely.
 
 ### Does PadBridge collect any data?
 
-No. It has no internet permission, no analytics, no ads and no accounts. See [PRIVACY.md](../PRIVACY.md).
+No. It has no analytics, no ads and no accounts. The Play build has no internet permission; the GitHub build
+only contacts GitHub to check for and download updates, and you can turn the daily check off. See
+[PRIVACY.md](../PRIVACY.md).
 
 ### What's the difference between the GitHub and Play builds?
 

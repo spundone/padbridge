@@ -23,8 +23,8 @@ android {
         applicationId = "dev.padbridge"
         minSdk = 28
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.1.0"
+        versionCode = 23
+        versionName = "1.2.0"
     }
 
     // github: everything, including experimental root mode. play: Play Store build without root features.
@@ -101,4 +101,6 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.13.0")
+    // Play build only: Google Play's in-app updates (talks to the Play Store app, no INTERNET permission).
+    "playImplementation"("com.google.android.play:app-update:2.1.0")
 }
