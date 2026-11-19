@@ -157,7 +157,8 @@ x component (roll angle).
 
 - `PadBridgeTheme` wraps `MaterialExpressiveTheme` with `MotionScheme.expressive()`. Color comes from the
   wallpaper (dynamic color, Android 12+) or a built-in scheme. From 0.8.0 the user can choose dynamic color or the
-  PadBridge palette, Light/Dark/System, and a pure-black dark theme.
+  PadBridge palette, Light/Dark/System, and a pure-black dark theme. Wallpaper colors are the default; the
+  PadBridge palette (Android 9-11, or with wallpaper colors off) is generated with Material Color Utilities (see the comment above `BrandLight` in `ui/Theme.kt`).
 - The Canvas views read colors from the `C` object. `syncViewColors()` copies the Compose `ColorScheme` into `C` on
   every theme composition, so the views follow theme changes.
 - **AOD mode:** `AodTheme` swaps in a black/grey scheme and sets `C.AOD = true`. Views then draw with

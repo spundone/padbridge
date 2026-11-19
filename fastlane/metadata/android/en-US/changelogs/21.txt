@@ -1,0 +1,1 @@
+Rebuilt the built-in color palette (Android 9–11, or with wallpaper colors off). Less clutter: no repeated status text or controls.

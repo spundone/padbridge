@@ -23,47 +23,49 @@ import dev.padbridge.C
 
 /*
  * PadBridge's own palette, used when wallpaper (dynamic) color is off or unavailable (Android 9-11).
- * Seeded from brand blue #3E64E5 with a slate secondary and a teal tertiary, laid out on the
- * Material 3 tone scale (primary 40/90/100/10 light, 80/20/30/90 dark).
+ * Generated with Material Color Utilities: SchemeVibrant from brand blue #3E64E5 (saturated blue
+ * primary, blue-tinted surfaces instead of flat grey), a secondary on the same blue hue at chroma 30
+ * so chips and the nav indicator stay in the family, and a warm coral tertiary (#FF7A50 hue) for
+ * accents. Regenerate rather than hand-editing single values, so the tones stay consistent.
  */
 private val BrandLight = lightColorScheme(
-    primary = Color(0xFF3557C8), onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFDCE1FF), onPrimaryContainer = Color(0xFF00164F),
-    inversePrimary = Color(0xFFB6C4FF),
-    secondary = Color(0xFF595D72), onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFDEE1F9), onSecondaryContainer = Color(0xFF161B2C),
-    tertiary = Color(0xFF006A60), onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFF9EF2E4), onTertiaryContainer = Color(0xFF00201C),
-    error = Color(0xFFBA1A1A), onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFFFDAD6), onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFBF8FF), onBackground = Color(0xFF1A1B21),
-    surface = Color(0xFFFBF8FF), onSurface = Color(0xFF1A1B21),
-    surfaceVariant = Color(0xFFE2E1EC), onSurfaceVariant = Color(0xFF45464F),
-    surfaceContainerLowest = Color(0xFFFFFFFF), surfaceContainerLow = Color(0xFFF5F2FA),
-    surfaceContainer = Color(0xFFEFEDF4), surfaceContainerHigh = Color(0xFFE9E7EF),
-    surfaceContainerHighest = Color(0xFFE3E1E9),
-    outline = Color(0xFF767680), outlineVariant = Color(0xFFC6C5D0),
-    inverseSurface = Color(0xFF2F3036), inverseOnSurface = Color(0xFFF2F0F7),
+    primary = Color(0xFF004CED), onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFDCE1FF), onPrimaryContainer = Color(0xFF0038B6),
+    inversePrimary = Color(0xFFB7C4FF), secondary = Color(0xFF525C88),
+    onSecondary = Color(0xFFFFFFFF), secondaryContainer = Color(0xFFDCE1FF),
+    onSecondaryContainer = Color(0xFF0D1840), tertiary = Color(0xFFA73A15),
+    onTertiary = Color(0xFFFFFFFF), tertiaryContainer = Color(0xFFFFDBD0),
+    onTertiaryContainer = Color(0xFF3A0A00), error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF), errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF93000A), background = Color(0xFFFAF8FF),
+    onBackground = Color(0xFF191B25), surface = Color(0xFFFAF8FF),
+    onSurface = Color(0xFF191B25), surfaceVariant = Color(0xFFE0E1F3),
+    onSurfaceVariant = Color(0xFF444654), surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF3F2FF), surfaceContainer = Color(0xFFEDEDFB),
+    surfaceContainerHigh = Color(0xFFE7E7F5), surfaceContainerHighest = Color(0xFFE1E1EF),
+    outline = Color(0xFF727483), outlineVariant = Color(0xFFC4C5D6),
+    inverseSurface = Color(0xFF2E303A), inverseOnSurface = Color(0xFFF0EFFE),
+    surfaceBright = Color(0xFFFAF8FF), surfaceDim = Color(0xFFD9D9E7),
 )
 
 private val BrandDark = darkColorScheme(
-    primary = Color(0xFFB6C4FF), onPrimary = Color(0xFF002780),
-    primaryContainer = Color(0xFF1B3EAF), onPrimaryContainer = Color(0xFFDCE1FF),
-    inversePrimary = Color(0xFF3557C8),
-    secondary = Color(0xFFC2C5DD), onSecondary = Color(0xFF2B3042),
-    secondaryContainer = Color(0xFF424659), onSecondaryContainer = Color(0xFFDEE1F9),
-    tertiary = Color(0xFF82D5C8), onTertiary = Color(0xFF003731),
-    tertiaryContainer = Color(0xFF005048), onTertiaryContainer = Color(0xFF9EF2E4),
-    error = Color(0xFFFFB4AB), onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A), onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF121318), onBackground = Color(0xFFE3E1E9),
-    surface = Color(0xFF121318), onSurface = Color(0xFFE3E1E9),
-    surfaceVariant = Color(0xFF45464F), onSurfaceVariant = Color(0xFFC6C5D0),
-    surfaceContainerLowest = Color(0xFF0D0E13), surfaceContainerLow = Color(0xFF1A1B21),
-    surfaceContainer = Color(0xFF1E1F25), surfaceContainerHigh = Color(0xFF292A2F),
-    surfaceContainerHighest = Color(0xFF34343A),
-    outline = Color(0xFF90909A), outlineVariant = Color(0xFF45464F),
-    inverseSurface = Color(0xFFE3E1E9), inverseOnSurface = Color(0xFF2F3036),
+    primary = Color(0xFFB7C4FF), onPrimary = Color(0xFF002682),
+    primaryContainer = Color(0xFF0038B6), onPrimaryContainer = Color(0xFFDCE1FF),
+    inversePrimary = Color(0xFF004CED), secondary = Color(0xFFBAC4F6),
+    onSecondary = Color(0xFF232E56), secondaryContainer = Color(0xFF3A456E),
+    onSecondaryContainer = Color(0xFFDCE1FF), tertiary = Color(0xFFFFB59F),
+    onTertiary = Color(0xFF5E1700), tertiaryContainer = Color(0xFF852400),
+    onTertiaryContainer = Color(0xFFFFDBD0), error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005), errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6), background = Color(0xFF11131C),
+    onBackground = Color(0xFFE1E1EF), surface = Color(0xFF11131C),
+    onSurface = Color(0xFFE1E1EF), surfaceVariant = Color(0xFF444654),
+    onSurfaceVariant = Color(0xFFC4C5D6), surfaceContainerLowest = Color(0xFF0C0E17),
+    surfaceContainerLow = Color(0xFF191B25), surfaceContainer = Color(0xFF1D1F29),
+    surfaceContainerHigh = Color(0xFF282934), surfaceContainerHighest = Color(0xFF32343F),
+    outline = Color(0xFF8E909F), outlineVariant = Color(0xFF444654),
+    inverseSurface = Color(0xFFE1E1EF), inverseOnSurface = Color(0xFF2E303A),
+    surfaceBright = Color(0xFF373943), surfaceDim = Color(0xFF11131C),
 )
 
 /** AMOLED: true-black background, containers lifted just enough to stay distinguishable. */

@@ -260,7 +260,7 @@ fun TrackpadScreen(
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
-            if (hid.connected || aod) ConnectionChip(hid, aod)
+            if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
             Spacer(Modifier.weight(1f))
             AodButton(aod, onAod)
             OverflowMenu(
@@ -967,7 +967,7 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
 
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-            if (hid.connected || aod) ConnectionChip(hid, aod)
+            if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
             Spacer(Modifier.weight(1f))
             AodButton(aod, onAod)
             FilledTonalIconToggleButton(
@@ -1169,11 +1169,15 @@ fun ConnectionChip(hid: HidUi, aod: Boolean) {
  */
 @Composable
 fun NotConnectedBanner(hid: HidUi, onGoConnect: () -> Unit, modifier: Modifier = Modifier) {
-    AnimatedVisibility(!hid.connected, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-        val last = remember(hid.version) { HidManager.lastHostDevice() }
-        // Registering is a normal second or two at startup: show progress, not a "Fix" button.
-        val connecting = hid.state == HidManager.State.CONNECTING || hid.state == HidManager.State.REGISTERING
-        val ready = hid.state == HidManager.State.READY
+    val last = remember(hid.version) { HidManager.lastHostDevice() }
+    // Registering is a normal second or two at startup: show progress, not a "Fix" button.
+    val connecting = hid.state == HidManager.State.CONNECTING || hid.state == HidManager.State.REGISTERING
+    val ready = hid.state == HidManager.State.READY
+    // With the top bar's status pill on screen, "Not connected" / "Connecting…" would repeat it: keep the
+    // banner only for a one-tap reconnect or an error that needs fixing.
+    val topBar = LocalTopBarStatus.current
+    val visible = !hid.connected && (!topBar || (!connecting && (!ready || last != null)))
+    AnimatedVisibility(visible, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1187,6 +1191,7 @@ fun NotConnectedBanner(hid: HidUi, onGoConnect: () -> Unit, modifier: Modifier =
                     when {
                         hid.state == HidManager.State.REGISTERING -> "Starting Bluetooth…"
                         connecting -> "Connecting…"
+                        ready && topBar && last != null -> "Last used"
                         ready -> "Not connected"
                         else -> hid.detail.ifEmpty { "Bluetooth isn't ready" }
                     },

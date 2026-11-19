@@ -7,6 +7,17 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [1.0.2] – 2026-11-19
+
+### Changed
+- **Rebuilt PadBridge palette** (used on Android 9–11, or with wallpaper colors off): generated with Material Color
+  Utilities, with a saturated blue primary, blue-tinted surfaces instead of flat grey, a matching blue secondary
+  and a coral accent.
+- **Connection status shows once.** The top bar's status pill is the only connection indicator on the input tabs;
+  the in-screen computer chip now appears only where the top bar is hidden (full screen, landscape, AOD), and the
+  "Not connected" banner only when it offers a one-tap reconnect or an error fix. The pill is hidden on the Connect
+  tab, whose status card says the same thing.
+
 ## [1.0.1] – 2026-11-19
 
 ### Fixed

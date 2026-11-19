@@ -10,24 +10,24 @@ import android.view.View
 
 /**
  * Colors used by the custom-drawn views (trackpad, keyboard, gamepad). The Compose theme
- * overwrites these from the Material 3 color scheme (dynamic wallpaper colors on Android 12+).
+ * overwrites these from the Material 3 color scheme (wallpaper colors on Android 12+, otherwise PadBridge's palette).
  */
 object C {
     /** Always-on-display style: black, thin dim outlines, no fills. Set by the Compose AodTheme. */
     var AOD = false
     var AOD_LINE = Color.parseColor("#3C3C3C")
-    var BG = Color.parseColor("#111318")
-    var SURFACE = Color.parseColor("#1D2024")
-    var SURFACE2 = Color.parseColor("#282A2F")
-    var SURFACE3 = Color.parseColor("#33353A")
-    var STROKE = Color.parseColor("#44474E")
-    var ACCENT = Color.parseColor("#AAC7FF")
-    var ON_ACCENT = Color.parseColor("#0A305F")
-    var ACCENT_DIM = Color.parseColor("#284777")
-    var ON_ACCENT_DIM = Color.parseColor("#D6E3FF")
-    var TERTIARY = Color.parseColor("#D6BEE4")
-    var TEXT = Color.parseColor("#E2E2E9")
-    var MUTED = Color.parseColor("#C4C6D0")
+    var BG = Color.parseColor("#11131C")
+    var SURFACE = Color.parseColor("#1D1F29")
+    var SURFACE2 = Color.parseColor("#282934")
+    var SURFACE3 = Color.parseColor("#32343F")
+    var STROKE = Color.parseColor("#444654")
+    var ACCENT = Color.parseColor("#B7C4FF")
+    var ON_ACCENT = Color.parseColor("#002682")
+    var ACCENT_DIM = Color.parseColor("#0038B6")
+    var ON_ACCENT_DIM = Color.parseColor("#DCE1FF")
+    var TERTIARY = Color.parseColor("#FFB59F")
+    var TEXT = Color.parseColor("#E1E1EF")
+    var MUTED = Color.parseColor("#C4C5D6")
     var OK = Color.parseColor("#7DDC9A")
 }
 

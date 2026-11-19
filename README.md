@@ -27,7 +27,7 @@ Also:
 - **Full display** and **AOD mode** (dim outlines on black at minimum brightness) for the trackpad.
 - A Quick Settings tile and notification buttons that jump straight to the trackpad or keyboard.
 - **Find nearby computers**: pair from the phone instead of from the computer.
-- Material 3 Expressive UI with dynamic color, an adaptive navigation rail on tablets and a themed icon.
+- Material 3 Expressive UI with wallpaper colors (or a vivid built-in palette), an adaptive navigation rail on tablets and a themed icon.
 - **Native touchpad (beta)**: Windows Precision Touchpad / Linux multitouch, so the computer does gestures itself.
 - Experimental **root mode** (GitHub build only) for Bluetooth speaker, device class and controller identity.
 

@@ -216,7 +216,8 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
             TopAppBar(
                 title = { Text("PadBridge", fontWeight = FontWeight.SemiBold) },
                 actions = {
-                    StatusPill(hid) { dest = Dest.CONNECT }
+                    // The Connect tab's status card already says this, larger.
+                    if (dest != Dest.CONNECT) StatusPill(hid) { dest = Dest.CONNECT }
                     IconButton(onClick = { settingsOpen = true }) {
                         Icon(Icons.Outlined.Settings, contentDescription = "Settings")
                     }
@@ -269,6 +270,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
             modifier = Modifier.weight(1f).fillMaxSize(),
             label = "dest",
         ) { d ->
+            androidx.compose.runtime.CompositionLocalProvider(LocalTopBarStatus provides true) {
             when (d) {
                 Dest.CONNECT -> ConnectScreen(
                     hid, osVersion, onOsChanged = { osVersion++ }, onOpenSettings = { settingsOpen = true },
@@ -277,6 +279,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
                 Dest.TRACKPAD, Dest.KEYBOARD, Dest.AIR_MOUSE, Dest.REMOTE ->
                     InputDest(d, hid, osVersion, fullscreen, toggleFullscreen, false, { aod = true }, { fullDisplay = true }, { dest = Dest.CONNECT }) { dest = Dest.AIR_MOUSE }
                 Dest.GAMEPAD -> Box(Modifier)
+            }
             }
         }
         }
@@ -297,6 +300,12 @@ private fun InputDest(
         else -> {}
     }
 }
+
+/**
+ * True inside the main layout, where the top bar's [StatusPill] already shows the connection. Input screens
+ * then leave out their own connection chip and plain "Not connected" banner, so the status appears once.
+ */
+val LocalTopBarStatus = androidx.compose.runtime.staticCompositionLocalOf { false }
 
 @Composable
 fun StatusPill(hid: HidUi, onClick: () -> Unit) {
