@@ -96,9 +96,11 @@ fun ConnectScreen(
         modifier = Modifier.fillMaxWidth(),
     ) {
         item { StatusHero(hid) }
-        if (hid.connected) item { QuickTiles(onOpen) }
+        // The navigation bar already switches modes, so no shortcut tiles here. While connected, the
+        // status card names the computer and has Disconnect, so the list shows only the others.
+        val shown = if (hid.connected) hosts.filterNot { HidManager.sameHost(it, hid.hostAddress, hid.hostName) } else hosts
 
-        item { SectionHeader("Computers") }
+        if (shown.isNotEmpty() || !hid.connected) item { SectionHeader(if (hid.connected) "Other computers" else "Computers") }
         if (hosts.isEmpty()) {
             item {
                 SegmentedListItem(
@@ -110,14 +112,14 @@ fun ConnectScreen(
                 ) { Text("No paired computers yet") }
             }
         }
-        itemsIndexed(hosts, key = { _, d -> d.address }) { i, d ->
+        itemsIndexed(shown, key = { _, d -> d.address }) { i, d ->
             // The connected device can be a duplicate bond of the same PC, so match by name too.
             val connected = hid.connected && HidManager.sameHost(d, hid.hostAddress, hid.hostName)
             val connecting = !connected && hid.connectingAddress != null &&
                 HidManager.sameHost(d, hid.connectingAddress, if (hid.state == State.CONNECTING) hid.hostName else null)
             SegmentedListItem(
                 onClick = { if (!connected) HidManager.connect(d) },
-                shapes = ListItemDefaults.segmentedShapes(i, hosts.size),
+                shapes = ListItemDefaults.segmentedShapes(i, shown.size),
                 colors = if (connected) ListItemDefaults.segmentedColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -204,53 +206,10 @@ fun ConnectScreen(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             )
         }
-        item {
-            SegmentedListItem(
-                onClick = onOpenSettings,
-                shapes = ListItemDefaults.segmentedShapes(0, 1),
-                colors = segColors(),
-                leadingContent = { Icon(Icons.Rounded.Gesture, null) },
-                supportingContent = { Text("Speed, scrolling, gesture shortcuts") },
-                trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
-                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
-            ) { Text("Trackpad & gesture settings") }
-        }
+        item { Gap(24) }
     }
 }
 
-/** Shortcuts into the input screens once a computer is connected. */
-@Composable
-private fun QuickTiles(onOpen: (Dest) -> Unit) {
-    val tiles = listOf(Dest.TRACKPAD, Dest.KEYBOARD, Dest.REMOTE, Dest.GAMEPAD)
-    Row(
-        Modifier.fillMaxWidth().padding(top = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        tiles.forEachIndexed { i, d ->
-            Card(
-                onClick = { onOpen(d) },
-                shape = RoundedCornerShape(if (i == 0) 28.dp else 20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (i == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = if (i == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
-                ),
-                modifier = Modifier.weight(1f).height(92.dp),
-            ) {
-                Column(
-                    Modifier.fillMaxSize().padding(10.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(d.selectedIcon, null)
-                    Spacer(Modifier.height(6.dp))
-                    Text(d.label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                }
-            }
-        }
-    }
-}
-
-/** Scan for computers and pair from the phone (needed on Windows, works everywhere). */
 @Composable
 internal fun NearbySheet(hid: HidUi, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
@@ -430,9 +389,13 @@ private fun StatusHero(hid: HidUi) {
                 }
             }
             Gap(16)
+            if (hid.connected) Text("Connected", style = MaterialTheme.typography.labelLarge)
             Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            Gap(4)
-            Text(hid.detail, style = MaterialTheme.typography.bodyMedium)
+            // The detail repeats the computer's name once connected; the eyebrow above says it instead.
+            if (!hid.connected && hid.detail.isNotEmpty()) {
+                Gap(4)
+                Text(hid.detail, style = MaterialTheme.typography.bodyMedium)
+            }
             val showRetry = hid.state in setOf(State.UNSUPPORTED, State.IDLE, State.BLUETOOTH_OFF, State.NO_PERMISSION)
             if (hid.connected || hid.state == State.CONNECTING || showRetry) {
                 Gap(16)

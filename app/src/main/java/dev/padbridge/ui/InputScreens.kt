@@ -199,7 +199,7 @@ private fun FullscreenButton(fullscreen: Boolean, onToggle: () -> Unit) {
     androidx.compose.material3.IconButton(onClick = onToggle) {
         Icon(
             if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-            if (fullscreen) "Exit full screen" else "Full screen",
+            if (fullscreen) "Show app bars" else "Hide app bars",
         )
     }
 }
@@ -269,8 +269,8 @@ fun TrackpadScreen(
             AodButton(aod, onAod)
             OverflowMenu(
                 listOf(
-                    MenuEntry("Use the whole screen", Icons.Rounded.OpenInFull, action = onFullDisplay),
-                    MenuEntry(if (fullscreen) "Exit full screen" else "Full screen",
+                    MenuEntry("Trackpad only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
+                    MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
                         if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
                     MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
                     MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
@@ -402,8 +402,8 @@ fun KeyboardScreen(
             }
             OverflowMenu(
                 listOf(
-                    MenuEntry("Keyboard on the whole screen", Icons.Rounded.OpenInFull, action = onFullDisplay),
-                    MenuEntry(if (fullscreen) "Exit full screen" else "Full screen",
+                    MenuEntry("Keyboard only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
+                    MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
                         if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
                 )
             )
@@ -969,21 +969,11 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
     val back = profile.back
     val home = profile.home(os)
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-            if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
-            Spacer(Modifier.weight(1f))
-            AodButton(aod, onAod)
-            FilledTonalIconToggleButton(
-                checked = kbOpen, onCheckedChange = { kbOpen = it },
-                modifier = Modifier.aodOutline(aod, IconButtonDefaults.filledShape),
-            ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Type text") }
-        }
-
-        NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
-
-        // Profile picker
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+    val landscapeTop = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // Profile picker. In landscape it shares the toolbar row, leaving the height to the clickpad.
+    val profileChips: @Composable (Modifier) -> Unit = { m ->
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = m) {
             items(dev.padbridge.RemoteProfile.entries) { p ->
                 androidx.compose.material3.FilterChip(
                     selected = p == profile,
@@ -1002,6 +992,21 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
                 )
             }
         }
+    }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
+            if (landscapeTop) profileChips(Modifier.weight(1f).padding(horizontal = 8.dp)) else Spacer(Modifier.weight(1f))
+            AodButton(aod, onAod)
+            FilledTonalIconToggleButton(
+                checked = kbOpen, onCheckedChange = { kbOpen = it },
+                modifier = Modifier.aodOutline(aod, IconButtonDefaults.filledShape),
+            ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Type text") }
+        }
+
+        NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
+
+        if (!landscapeTop) profileChips(Modifier.fillMaxWidth())
 
         AnimatedVisibility(kbOpen) {
             AndroidView({ ime }, Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp))
@@ -1009,16 +1014,14 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
 
         // Siri Remote-style: a large clickpad, then a quiet two-column grid of identical round keys
         // (Back | Home, Play | volume rocker, Mute). No panel, no colored keys: the controls float on the page.
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            val slides = profile == dev.padbridge.RemoteProfile.SLIDES
-            val key = 64.dp
-            val gap = 16.dp
-            androidx.compose.foundation.layout.BoxWithConstraints(
-                Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center,
-            ) {
+        // Landscape puts the keys beside the clickpad instead of under it.
+        val slides = profile == dev.padbridge.RemoteProfile.SLIDES
+        val landscapeNow = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val key = if (landscapeNow) 52.dp else 64.dp
+        val gap = if (landscapeNow) 12.dp else 16.dp
+        val clickpad: @Composable (Modifier) -> Unit = { m ->
+            androidx.compose.foundation.layout.BoxWithConstraints(m, contentAlignment = Alignment.Center) {
                 // Square, as large as fits (capped for tablets).
                 val side = minOf(maxWidth - 16.dp, maxHeight, 400.dp)
                 AndroidView(
@@ -1027,7 +1030,24 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
                     modifier = Modifier.size(side),
                 )
             }
-            Spacer(Modifier.height(20.dp))
+        }
+        val playKey = dev.padbridge.RemoteButton("Play / pause", dev.padbridge.RemoteOut.Consumer(Keys.C_PLAY_PAUSE))
+        val muteKey = dev.padbridge.RemoteButton("Mute", dev.padbridge.RemoteOut.Consumer(Keys.C_MUTE))
+        // Landscape has little height: two short rows, with the rocker lying sideways.
+        val wideKeys: @Composable () -> Unit = {
+            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    RemoteKey(back, Icons.Rounded.ChevronLeft, aod, key)
+                    RemoteKey(home, if (slides) Icons.Rounded.Slideshow else Icons.Rounded.Tv, aod, key)
+                    RemoteKey(playKey, Icons.Rounded.PlayArrow, aod, key, secondIcon = Icons.Rounded.Pause)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    RemoteKey(muteKey, Icons.AutoMirrored.Rounded.VolumeOff, aod, key)
+                    VolumeRocker(aod, key * 2 + gap, key, horizontal = true)
+                }
+            }
+        }
+        val keys: @Composable () -> Unit = {
             Row(horizontalArrangement = Arrangement.spacedBy(56.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(gap)) {
                     RemoteKey(back, Icons.Rounded.ChevronLeft, aod, key)
@@ -1044,6 +1064,26 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
                     RemoteKey(home, if (slides) Icons.Rounded.Slideshow else Icons.Rounded.Tv, aod, key)
                     VolumeRocker(aod, key, key * 2 + gap)
                 }
+            }
+        }
+        if (landscapeNow) {
+            Row(
+                Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                clickpad(Modifier.weight(1f).fillMaxHeight())
+                wideKeys()
+                Spacer(Modifier.width(24.dp))
+            }
+        } else {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                clickpad(Modifier.weight(1f).fillMaxWidth())
+                Spacer(Modifier.height(20.dp))
+                keys()
             }
         }
 
@@ -1127,7 +1167,9 @@ private fun RemoteKey(
 
 /** Siri Remote-style volume rocker: one tall pill, + on top and − below. */
 @Composable
-private fun VolumeRocker(aod: Boolean, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
+private fun VolumeRocker(
+    aod: Boolean, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp, horizontal: Boolean = false,
+) {
     val up = remember { dev.padbridge.RemoteButton("Volume up", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_UP)) }
     val down = remember { dev.padbridge.RemoteButton("Volume down", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_DOWN)) }
     var upPressed by remember { mutableStateOf(false) }
@@ -1139,16 +1181,16 @@ private fun VolumeRocker(aod: Boolean, width: androidx.compose.ui.unit.Dp, heigh
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(width, height).aodOutline(aod, shape),
     ) {
-        Column {
-            listOf(Triple(up, Icons.Rounded.Add, upPressed), Triple(down, Icons.Rounded.Remove, downPressed)).forEach { (b, icon, pr) ->
-                Box(
-                    Modifier.weight(1f).fillMaxWidth()
-                        .background(if (pr) MaterialTheme.colorScheme.surfaceContainerHighest else androidx.compose.ui.graphics.Color.Transparent)
-                        .remotePress(b) { if (b === up) upPressed = it else downPressed = it },
-                    contentAlignment = Alignment.Center,
-                ) { Icon(icon, null, Modifier.size(26.dp)) }
-            }
-        }
+        val halves = listOf(Triple(up, Icons.Rounded.Add, upPressed), Triple(down, Icons.Rounded.Remove, downPressed))
+            .let { if (horizontal) it.reversed() else it } // sideways: − on the left, + on the right
+        @Composable
+        fun Half(m: Modifier, t: Triple<dev.padbridge.RemoteButton, ImageVector, Boolean>) = Box(
+            m.background(if (t.third) MaterialTheme.colorScheme.surfaceContainerHighest else androidx.compose.ui.graphics.Color.Transparent)
+                .remotePress(t.first) { if (t.first === up) upPressed = it else downPressed = it },
+            contentAlignment = Alignment.Center,
+        ) { Icon(t.second, null, Modifier.size(26.dp)) }
+        if (horizontal) Row { halves.forEach { Half(Modifier.weight(1f).fillMaxHeight(), it) } }
+        else Column { halves.forEach { Half(Modifier.weight(1f).fillMaxWidth(), it) } }
     }
 }
 

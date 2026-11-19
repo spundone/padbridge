@@ -179,7 +179,7 @@ fun SettingsScreen(
                     }
                 }
                 SettingsPage.GESTURES -> {
-                    item { SectionHeader("Gestures on ${os.label}") }
+                    item { Gap(8) }
                     item {
                         Row(Modifier.padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             androidx.compose.material3.FilledTonalButton(onClick = { Settings.resetGestures(); gestureVersion++ }) {
@@ -224,7 +224,7 @@ fun SettingsScreen(
                     }
                 }
                 SettingsPage.MOTION -> {
-                    item { SectionHeader("Air mouse & gyro") }
+                    item { Gap(8) }
                     item { SliderRow("Air mouse speed", 0, 4, Settings.airSpeed) { Settings.airSpeed = it } }
                     item {
                         SwitchRow("Air mouse always aims", "Move without holding the pad. Tap the pad to click.",
@@ -236,18 +236,18 @@ fun SettingsScreen(
                         }
                     }
                     item {
-                        SwitchRow("Full screen input", "Trackpad, keyboard and air mouse hide the bars. Back exits.",
+                        SwitchRow("Hide app bars on input screens", "Trackpad, keyboard and air mouse use the whole height. Back shows them again.",
                             3, 4, Settings.fullscreenInput) { Settings.fullscreenInput = it }
                     }
                 }
                 SettingsPage.APPEARANCE -> {
-                    item { SectionHeader("Appearance") }
+                    item { Gap(8) }
                     item { AppearanceSettings() }
                 }
                 SettingsPage.GENERAL -> {
                     item { SectionHeader("Computer type") }
                     item { OsSelector(osVersion) { osVersion++; gestureVersion++; onOsChanged() } }
-                    item { SectionHeader("General") }
+                    item { SectionHeader("Behavior") }
                     item { SwitchRow("Haptic feedback", null, 0, 4, Settings.haptics) { Settings.haptics = it } }
                     item { SwitchRow("Reconnect to last computer", "When PadBridge starts", 1, 4, Settings.autoReconnect) { Settings.autoReconnect = it } }
                     item {
@@ -279,7 +279,7 @@ fun SettingsScreen(
                     }
                 }
                 SettingsPage.ABOUT -> {
-                    item { SectionHeader("About") }
+                    item { Gap(8) }
                     item { AboutSection(activity) }
 
                     item {

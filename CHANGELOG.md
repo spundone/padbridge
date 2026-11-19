@@ -22,6 +22,24 @@ undated.
   icon-only keys in two columns: Back | Home, Play/Pause | a tall volume rocker, Mute. Keys shrink and brighten
   when pressed instead of flashing the accent color. The panel behind the controls is gone. Previous / Next moved
   to the row of extra buttons (on Slides, the clickpad's left / right already step slides).
+- **Text dedupe pass** (checked on a phone connected to a Mac):
+  - Connect: the computer's name appears once (status card reads "Connected" above it, without a second
+    "Connected to …" line); the connected computer is no longer repeated in the list, which becomes "Other
+    computers"; the mode tiles that repeated the navigation bar and the settings shortcut that repeated the gear
+    are gone.
+  - Setup: once connected, the pairing step just says "Connected" instead of a broken-up name followed by pairing
+    steps; macOS is no longer subtitled "macOS"; the tips point at the trackpad's ⋮ menu for the gesture guide.
+  - Settings pages no longer repeat their title as the first section header ("General" section → "Behavior").
+  - "Full screen" vs "Use the whole screen" were easy to confuse: now "Hide app bars" and "Trackpad / Keyboard
+    only, edge to edge".
+  - Gamepad: the Xbox Guide button shows a home glyph instead of an "X" next to the X face button.
+
+### Fixed
+- Remote in landscape: the clickpad collapsed to a dot and Mute to a sliver. Landscape now puts the profile chips
+  in the toolbar row and the keys beside the clickpad, with the volume rocker lying sideways.
+
+### Developer
+- Debug builds install as `dev.padbridge.dev` ("PadBridge Dev") next to the release app.
 
 ## [1.0.1] – 2026-11-19
 

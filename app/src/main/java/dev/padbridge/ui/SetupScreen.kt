@@ -231,7 +231,7 @@ private fun ComputerStep() {
     Title("Your computer", "Sets keyboard labels, shortcuts and what gestures do. You can change it any time, per computer.")
     val options = listOf(
         Triple(HostOs.WINDOWS, Icons.Rounded.DesktopWindows, "Windows 10 or 11"),
-        Triple(HostOs.MAC, Icons.Rounded.LaptopMac, "macOS"),
+        Triple(HostOs.MAC, Icons.Rounded.LaptopMac, "MacBook, iMac, Mac mini"),
         Triple(HostOs.LINUX, Icons.Rounded.Terminal, "GNOME, KDE and others"),
     )
     options.forEach { (o, icon, sub) ->
@@ -269,8 +269,13 @@ private fun PairStep(hid: HidUi) {
     var nearby by remember { mutableStateOf(false) }
     if (nearby) NearbySheet(hid) { nearby = false }
     Hero(if (hid.connected) MaterialShapes.SoftBurst else MaterialShapes.Cookie12Sided, if (hid.connected) Icons.Rounded.Check else Icons.Rounded.Search)
+    if (hid.connected) {
+        // Done: no pairing steps or buttons left to show.
+        Title("Connected", "${hid.hostName ?: "Your computer"} is ready. You can pair more computers later from the Connect tab.")
+        return
+    }
     Title(
-        if (hid.connected) "Connected to ${hid.hostName ?: "your computer"}" else "Pair your computer",
+        "Pair your computer",
         when (Settings.hostOs) {
             HostOs.WINDOWS -> "On the PC open Settings › Bluetooth & devices and keep it open, then find it from here. " +
                 "If Windows pairs but the trackpad doesn't work, open Control Panel › Devices and Printers › this phone › " +
@@ -305,8 +310,8 @@ private fun DoneStep(hid: HidUi) {
     Hero(MaterialShapes.Sunny, Icons.Rounded.Check)
     Title(
         "You're set",
-        "Tips: two fingers scroll, pinch zooms, three and four fingers switch apps and desktops. Tap the bulb on the " +
-            "trackpad for the full gesture list, and the moon for a dim always-on look.",
+        "Tips: two fingers scroll, pinch zooms, three and four fingers switch apps and desktops. The trackpad's ⋮ menu " +
+            "has the full gesture guide, and the moon gives a dim always-on look.",
     )
     Text(
         if (hid.connected) "Connected to ${hid.hostName}." else "Not connected yet. Pick a computer on the Connect tab whenever you're ready.",

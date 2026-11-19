@@ -60,11 +60,18 @@ android {
     }
 
     buildTypes {
-        debug { signingConfig = signingConfigs.getByName("dev") }
+        debug {
+            signingConfig = signingConfigs.getByName("dev")
+            // Installs next to the release app (own package, own label), so testing never replaces it.
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            manifestPlaceholders["appLabel"] = "PadBridge Dev"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            manifestPlaceholders["appLabel"] = "PadBridge"
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "dev")
         }
     }

@@ -476,11 +476,31 @@ class GamepadView(ctx: Context) : View(ctx) {
         rt -> if (style == Style.XBOX) "RT" else "R2"
         view -> if (style == Style.XBOX) "⧉" else "Create"
         menu -> if (style == Style.XBOX) "≡" else "Options"
-        home -> if (style == Style.XBOX) "X" else "PS"
+        home -> if (style == Style.XBOX) "Home" else "PS"
         share -> if (style == Style.XBOX) "Share" else "Touchpad"
         l3 -> "L3"
         r3 -> "R3"
         else -> ""
+    }
+
+    private val glyph = android.graphics.Path()
+    private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+    }
+
+    /** Outline house: roof and walls, [s] is half the width. */
+    private fun drawHomeGlyph(c: Canvas, x: Float, y: Float, s: Float, color: Int) {
+        glyph.reset()
+        glyph.moveTo(x - s, y - s * 0.05f)
+        glyph.lineTo(x, y - s * 0.95f)
+        glyph.lineTo(x + s, y - s * 0.05f)
+        glyph.moveTo(x - s * 0.72f, y - s * 0.3f)
+        glyph.lineTo(x - s * 0.72f, y + s * 0.85f)
+        glyph.lineTo(x + s * 0.72f, y + s * 0.85f)
+        glyph.lineTo(x + s * 0.72f, y - s * 0.3f)
+        glyphPaint.color = color
+        glyphPaint.strokeWidth = 2.2f * density
+        c.drawPath(glyph, glyphPaint)
     }
 
     private fun drawCentered(c: Canvas, text: String, x: Float, y: Float) =
@@ -574,6 +594,11 @@ class GamepadView(ctx: Context) : View(ctx) {
             if (isFace && caption != null && !on) {
                 // Ring in the face color so action buttons stay recognisable as A/B/X/Y.
                 stroke.color = col; c.drawCircle(b.cx, b.cy, b.r - stroke.strokeWidth, stroke); stroke.color = C.STROKE
+            }
+            if (b === home && caption == null && style == Style.XBOX) {
+                // Xbox Guide: a home glyph, since an "X" label read as a second X face button.
+                drawHomeGlyph(c, b.cx, b.cy, b.r * 0.5f, if (on) C.ON_ACCENT else C.TEXT)
+                continue
             }
             val text = caption ?: if (isFace) faceLabel(b) else name(b)
             label.color = when {
