@@ -21,7 +21,19 @@ object Settings {
             p.edit().putString("hostOs", v.name).apply()
             // macOS applies its own "natural scrolling" to wheel input, so default to plain wheel there.
             if (!p.contains("naturalScroll_${v.name}")) naturalScroll = v != HostOs.MAC
+            syncRemoteToComputer(v)
         }
+
+    /**
+     * The remote's computer profile follows the computer type (Mac for macOS, PC for Windows and Linux).
+     * TV and Slides profiles are a separate choice and are left alone.
+     */
+    private fun syncRemoteToComputer(os: HostOs) {
+        val cur = RemoteProfile.from(p.getString("remoteProfile", null))
+        if (cur != RemoteProfile.MAC && cur != RemoteProfile.PC) return
+        val want = if (os == HostOs.MAC) RemoteProfile.MAC else RemoteProfile.PC
+        if (cur != want) p.edit().putString("remoteProfile", want.name).apply()
+    }
 
     /** Remembered per host OS because macOS inverts wheel direction itself. */
     var naturalScroll: Boolean
@@ -115,7 +127,11 @@ object Settings {
         set(v) = putBool("kbPreview", v)
 
     var remoteProfile: RemoteProfile
-        get() = RemoteProfile.from(p.getString("remoteProfile", null))
+        get() {
+            // One-time fix (1.1.0) for profiles saved before the remote followed the computer type.
+            if (!p.contains("remoteSynced")) { syncRemoteToComputer(hostOs); p.edit().putBoolean("remoteSynced", true).apply() }
+            return RemoteProfile.from(p.getString("remoteProfile", null))
+        }
         set(v) = p.edit().putString("remoteProfile", v.name).apply()
 
     /** In the remote, the phone's volume buttons go to the computer / TV (Slides: previous / next slide). */

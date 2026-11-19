@@ -7,7 +7,7 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
-## [1.1.0] – unreleased
+## [1.1.0] – 2026-11-19
 
 ### Added
 - **Laptop deck** keyboard mode: the keyboard across the top with a trackpad centered below it, like a laptop's
@@ -30,6 +30,10 @@ undated.
   - Computers in the list animate in and out.
   - Trackpad taps leave a ring ripple (larger for multi-finger taps).
   - The Find nearby computers button morphs shape when pressed.
+
+### Changed
+- The remote's computer profile follows the computer type: macOS → Mac, Windows / Linux → PC (TV and Slides
+  profiles are untouched). A Mac/PC profile saved before this is fixed once on update.
 
 ## [1.0.2] – 2026-11-19
 
