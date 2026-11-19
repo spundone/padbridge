@@ -414,6 +414,11 @@ object HidManager {
     } catch (e: SecurityException) { d.address }
 
     @Volatile private var connectRetries = 0
+    @Volatile private var connectAttempt = 0
+
+    private fun notAnswering(d: BluetoothDevice) =
+        "${name(d)} isn't answering. Wake it and make sure Bluetooth is on; it can also connect to this phone " +
+            "by itself, PadBridge stays ready."
 
     fun connect(device: BluetoothDevice, retry: Boolean = false) {
         if (!retry) connectRetries = 0
@@ -439,14 +444,14 @@ object HidManager {
                 setState(State.READY, "Couldn't start a connection to ${name(device)}.")
                 return@post
             }
-            // Fall back to READY if the host never answers.
+            // Fall back to READY if the host never answers. Each attempt has its own number, so a timeout left
+            // over from an earlier attempt can't fire in the middle of a retry.
+            val attempt = ++connectAttempt
             main.postDelayed({
-                if (state == State.CONNECTING && connectingTo?.address == device.address) {
+                if (attempt == connectAttempt && state == State.CONNECTING && connectingTo?.address == device.address) {
                     connectingTo = null
-                    setState(
-                        State.READY,
-                        "${name(device)} didn't respond. If it was paired before PadBridge was installed, remove the pairing on the computer and pair again."
-                    )
+                    connectRetries = 0
+                    setState(State.READY, notAnswering(device))
                 }
             }, 12000)
         }
@@ -488,7 +493,7 @@ object HidManager {
         override fun onConnectionStateChanged(device: BluetoothDevice, st: Int) {
             when (st) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    host = device; connectingTo = null; connectRetries = 0
+                    host = device; connectingTo = null; connectRetries = 0; connectAttempt++
                     Settings.lastHost = device.address
                     resetReportState()
                     setState(State.CONNECTED, "Connected to ${name(device)}")
@@ -523,8 +528,7 @@ object HidManager {
                                 State.READY,
                                 when {
                                     refused -> "${name(device)} refused the trackpad and keyboard connection. " + refusalHint()
-                                    noAnswer -> "${name(device)} isn't answering. Wake it and make sure Bluetooth is on; " +
-                                        "it can also connect to this phone by itself, PadBridge stays ready."
+                                    noAnswer -> notAnswering(device)
                                     else -> "Disconnected from ${name(device)}"
                                 }
                             )

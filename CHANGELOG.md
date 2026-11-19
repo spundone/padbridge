@@ -7,6 +7,14 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [1.0.1] – 2026-11-19
+
+### Fixed
+- When a computer doesn't answer, PadBridge no longer shows "didn't respond… remove the pairing and pair again"
+  partway through its retries. A timeout left over from the first attempt fired on top of them. The message is
+  now consistently "isn't answering… it can also connect to this phone by itself", which doesn't wrongly suggest
+  re-pairing.
+
 ## [1.0.0] – 2026-11-19
 
 First public release.
