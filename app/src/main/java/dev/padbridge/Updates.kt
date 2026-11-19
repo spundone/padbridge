@@ -18,6 +18,12 @@ sealed interface UpdateState {
     data class Failed(val message: String, val openAppInfo: Boolean = false) : UpdateState
 }
 
+/** When the user last touched the screen or pressed a key (uptime ms), for dimming to AOD when idle. */
+object Idle {
+    var lastInput by mutableStateOf(android.os.SystemClock.uptimeMillis())
+    fun touched() { lastInput = android.os.SystemClock.uptimeMillis() }
+}
+
 object Updates {
     var state by mutableStateOf<UpdateState>(UpdateState.Idle)
 

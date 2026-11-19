@@ -154,19 +154,23 @@ fun SettingsScreen(
                             6, 7, Settings.twoFingerNavigate, key = osVersion) { Settings.twoFingerNavigate = it }
                     }
                     item { SectionHeader("Touch") }
-                    item { SwitchRow("Tap to click", null, 0, 4, Settings.tapToClick) { Settings.tapToClick = it } }
+                    item { SwitchRow("Tap to click", null, 0, 5, Settings.tapToClick) { Settings.tapToClick = it } }
                     item {
-                        SliderRow("Double-tap window", 1, 4, Settings.doubleTapMs, range = 150f..600f, steps = 8,
+                        SliderRow("Double-tap window", 1, 5, Settings.doubleTapMs, range = 150f..600f, steps = 8,
                             format = { "${it.toInt()} ms" }) { Settings.doubleTapMs = it }
                     }
                     item {
                         SwitchRow("Ignore resting fingers", "A finger left still on the pad doesn't count, like Samsung DeX",
-                            2, 4, Settings.restRejection) { Settings.restRejection = it }
+                            2, 5, Settings.restRejection) { Settings.restRejection = it }
                     }
                     item {
-                        SwitchRow("Show click buttons", "Left / right buttons under the trackpad", 3, 4, Settings.showClickButtons) {
+                        SwitchRow("Show click buttons", "Left / right buttons under the trackpad", 3, 5, Settings.showClickButtons) {
                             Settings.showClickButtons = it
                         }
+                    }
+                    item {
+                        SwitchRow("S Pen and stylus", "Hover to move the pointer, touch to click or drag, pen button for right " +
+                            "click. Your palm is ignored while the pen is near", 4, 5, Settings.stylus) { Settings.stylus = it }
                     }
 
                     item { SectionHeader("Native touchpad (beta)") }
@@ -248,14 +252,27 @@ fun SettingsScreen(
                     item { SectionHeader("Computer type") }
                     item { OsSelector(osVersion) { osVersion++; gestureVersion++; onOsChanged() } }
                     item { SectionHeader("Behavior") }
-                    item { SwitchRow("Haptic feedback", null, 0, 4, Settings.haptics) { Settings.haptics = it } }
-                    item { SwitchRow("Reconnect to last computer", "When PadBridge starts", 1, 4, Settings.autoReconnect) { Settings.autoReconnect = it } }
+                    item { SwitchRow("Haptic feedback", null, 0, 5, Settings.haptics) { Settings.haptics = it } }
+                    item { SwitchRow("Reconnect to last computer", "When PadBridge starts", 1, 5, Settings.autoReconnect) { Settings.autoReconnect = it } }
                     item {
-                        SwitchRow("Keep screen on while connected", null, 2, 4, Settings.keepScreenOn) {
+                        SwitchRow("Keep screen on while connected", null, 2, 5, Settings.keepScreenOn) {
                             Settings.keepScreenOn = it; activity.applyKeepScreenOn()
                         }
                     }
-                    item { SwitchRow("Show all paired devices", "Not only computers", 3, 4, Settings.showAllDevices) { Settings.showAllDevices = it } }
+                    item { SwitchRow("Show all paired devices", "Not only computers", 3, 5, Settings.showAllDevices) { Settings.showAllDevices = it } }
+                    item {
+                        val steps = listOf(0, 15, 30, 60, 120, 300)
+                        SliderRow(
+                            "Dim to outline mode when idle", 4, 5,
+                            steps.indexOf(Settings.idleAodSeconds).coerceAtLeast(0).toFloat(),
+                            range = 0f..(steps.size - 1).toFloat(), steps = steps.size - 2,
+                            format = { i ->
+                                when (val s = steps[i.toInt().coerceIn(0, steps.lastIndex)]) {
+                                    0 -> "Never"; in 1..59 -> "$s s"; else -> "${s / 60} min"
+                                }
+                            },
+                        ) { Settings.idleAodSeconds = steps[it.toInt().coerceIn(0, steps.lastIndex)] }
+                    }
 
                     item { SectionHeader("More") }
                     val rootBuild = dev.padbridge.BuildConfig.ROOT_FEATURES

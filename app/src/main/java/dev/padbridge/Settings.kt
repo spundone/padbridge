@@ -79,8 +79,14 @@ object Settings {
     // ---- On-screen keyboard: layout and size are remembered separately for portrait and landscape.
     private fun o(landscape: Boolean) = if (landscape) "L" else "P"
 
+    /** Default: Full everywhere; in portrait on phones it is kept short (see KeyboardArea) with a trackpad above. */
     fun kbLayout(landscape: Boolean): KbLayout =
         KbLayout.from(p.getString("kbLayout_${o(landscape)}", null), KbLayout.FULL)
+
+    /** Dim to outline (AOD) mode after this many seconds without touching the screen; 0 = never. */
+    var idleAodSeconds: Int
+        get() = p.getInt("idleAod", 60)
+        set(v) = p.edit().putInt("idleAod", v).apply()
     fun setKbLayout(landscape: Boolean, l: KbLayout) = p.edit().putString("kbLayout_${o(landscape)}", l.name).apply()
 
     /**
@@ -90,6 +96,38 @@ object Settings {
     fun kbLaptop(landscape: Boolean, tabletLandscape: Boolean) =
         if (p.contains("kbLaptop_${o(landscape)}")) p.getBoolean("kbLaptop_${o(landscape)}", false) else tabletLandscape
     fun setKbLaptop(landscape: Boolean, v: Boolean) = p.edit().putBoolean("kbLaptop_${o(landscape)}", v).apply()
+
+    // Laptop deck geometry, per orientation. 0 / negative = automatic.
+    /** Keyboard height as a fraction of the deck's height; 0 = automatic. */
+    fun deckKeys(landscape: Boolean) = p.getFloat("deckKeys_${o(landscape)}", 0f)
+    fun setDeckKeys(landscape: Boolean, v: Float) = p.edit().putFloat("deckKeys_${o(landscape)}", v).apply()
+    /** Keyboard width as a fraction of the screen; 0 = automatic (full width, capped on big tablets). */
+    fun deckKbWidth(landscape: Boolean) = p.getFloat("deckKbW_${o(landscape)}", 0f)
+    fun setDeckKbWidth(landscape: Boolean, v: Float) = p.edit().putFloat("deckKbW_${o(landscape)}", v).apply()
+    /** Trackpad width as a fraction of the screen. */
+    fun deckPadWidth(landscape: Boolean) = p.getFloat("deckPadW_${o(landscape)}", 0.42f)
+    fun setDeckPadWidth(landscape: Boolean, v: Float) = p.edit().putFloat("deckPadW_${o(landscape)}", v).apply()
+    /** Trackpad horizontal position: 0 = left, 0.5 = centered, 1 = right. */
+    fun deckPadPos(landscape: Boolean) = p.getFloat("deckPadX_${o(landscape)}", 0.5f)
+    fun setDeckPadPos(landscape: Boolean, v: Float) = p.edit().putFloat("deckPadX_${o(landscape)}", v).apply()
+    fun deckPadFull(landscape: Boolean) = p.getBoolean("deckPadFull_${o(landscape)}", false)
+    fun setDeckPadFull(landscape: Boolean, v: Boolean) = p.edit().putBoolean("deckPadFull_${o(landscape)}", v).apply()
+    /** Hide the deck's resize and move handles. */
+    var deckLocked: Boolean
+        get() = bool("deckLocked", false)
+        set(v) = putBool("deckLocked", v)
+    fun resetDeck(landscape: Boolean) = p.edit().apply {
+        listOf("deckKeys_", "deckKbW_", "deckPadW_", "deckPadX_", "deckPadFull_").forEach { remove(it + o(landscape)) }
+    }.apply()
+
+    /**
+     * S Pen / stylus on trackpads: hovering moves the pointer, touching the screen holds the left button
+     * (tap = click, drag = drag), the pen button gives a right click, and fingers are ignored while the pen is
+     * near the screen (palm rejection). Off: the pen acts like a finger.
+     */
+    var stylus: Boolean
+        get() = bool("stylus", true)
+        set(v) = putBool("stylus", v)
 
     /** Keyboard height in dp; 0 = fill the available space. */
     fun kbHeight(landscape: Boolean) = p.getFloat("kbHeight_${o(landscape)}", 0f)
@@ -151,7 +189,7 @@ object Settings {
 
     /** True-black backgrounds in dark mode (OLED). */
     var pureBlack: Boolean
-        get() = bool("pureBlack", false)
+        get() = bool("pureBlack", true)
         set(v) = putBool("pureBlack", v)
 
     /** First-run setup finished. */

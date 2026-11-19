@@ -17,13 +17,15 @@ import dev.padbridge.Keys.R_SHIFT
 import kotlin.math.max
 
 /** On-screen keyboard layouts. */
-enum class KbLayout(val label: String, val blurb: String) {
-    FULL("Full", "F-row, numbers, arrows"),
-    FULL_NUMPAD("Full + numpad", "Everything, with a number pad (landscape / tablets)"),
-    COMPACT_65("65%", "No F-row; Del, PgUp, PgDn, End column. Fn + number = F-key"),
-    SPLIT("Split", "65% halves at each edge, for two thumbs"),
-    GAMING("Gaming", "Big WASD block, arrows and action keys"),
-    NUMPAD("Numpad", "Number pad only, for data entry");
+/** [cols] x [rows]: the layout's size in key units, used to give keys a sensible shape. */
+enum class KbLayout(val label: String, val blurb: String, val cols: Float, val rows: Int) {
+    FULL("Full", "F-row, numbers, arrows", 15f, 6),
+    PHONE("Phone", "Big keys like a phone keyboard. Fn: F-keys, symbols, Home/End", 10f, 6),
+    FULL_NUMPAD("Full + numpad", "Everything, with a number pad (landscape / tablets)", 19.5f, 6),
+    COMPACT_65("65%", "No F-row; Del, PgUp, PgDn, End column. Fn + number = F-key", 16f, 5),
+    SPLIT("Split", "65% halves at each edge, for two thumbs", 19f, 5),
+    GAMING("Gaming", "Big WASD block, arrows and action keys", 11.75f, 5),
+    NUMPAD("Numpad", "Number pad only, for data entry", 5.25f, 5);
 
     companion object {
         fun from(name: String?, def: KbLayout) = entries.firstOrNull { it.name == name } ?: def
@@ -168,6 +170,26 @@ class KeyboardView(ctx: Context) : View(ctx) {
 
         val g = Grid()
         when (l) {
+            KbLayout.PHONE -> {
+                // Ten columns like a phone keyboard, so letters are big enough to hit. Modifiers and arrows sit in
+                // a slim top row; Fn turns the number row into F1–F10 and the top letter row into the symbols a
+                // phone keyboard hides (shift still applies: Fn + Shift + - types _).
+                fun lf(c: Char, code: Int, label: String) = Key(c.toString(), Keys.letter(c), 1f, c.uppercase(), fnCode = code, fnLabel = label)
+                g.row(0f, 0f, listOf(esc(), tab(1f), ctrl(w = 1f), alt(w = 1f), gui(w = 1f), left(), up(), down(), right(),
+                    sm(if (mac) "⌦" else "Del", Keys.DELETE, fnCode = Keys.INSERT, fnLabel = "Ins")))
+                g.row(1f, 0f, (0..9).map { digit(it) })
+                g.row(2f, 0f, listOf(
+                    lf('q', Keys.GRAVE, "`"), lf('w', Keys.MINUS, "-"), lf('e', Keys.EQUAL, "="),
+                    lf('r', Keys.LBRACKET, "["), lf('t', Keys.RBRACKET, "]"), lf('y', Keys.BACKSLASH, "\\"),
+                    lf('u', Keys.SEMICOLON, ";"), lf('i', Keys.QUOTE, "'"), lf('o', Keys.f(11), "F11"), lf('p', Keys.f(12), "F12"),
+                ))
+                g.row(3f, 0.5f, listOf(
+                    lf('a', Keys.HOME, "Home"), lf('s', Keys.PAGE_UP, "PgUp"), lf('d', Keys.PAGE_DOWN, "PgDn"), lf('f', Keys.END, "End"),
+                ) + letters("ghjkl"))
+                g.row(4f, 0f, listOf(lshift(1.5f)) + letters("zxcvbnm") + bksp(1.5f))
+                g.row(5f, 0f, listOf(fnKey(1.5f), s(",", "<", Keys.COMMA), space(4f), s(".", ">", Keys.PERIOD),
+                    s("/", "?", Keys.SLASH), enter(1.5f)))
+            }
             KbLayout.FULL, KbLayout.FULL_NUMPAD -> {
                 g.row(0f, 0f, listOf(esc()) + (1..12).map { sm("F$it", Keys.f(it)) } +
                     sm(if (mac) "⌦" else "Del", Keys.DELETE, w = 2f, fnCode = Keys.INSERT, fnLabel = "Ins"))

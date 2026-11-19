@@ -120,6 +120,23 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     val fullDisplayActive = fullDisplay && !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.KEYBOARD)
     LaunchedEffect(fullDisplayActive) { activity.setFullDisplay(fullDisplayActive) }
     LaunchedEffect(aodActive) { activity.setAod(aodActive) }
+    // Dim to AOD after a while without touching the screen (Settings › Behavior), on the screens that have it,
+    // while connected. A touch wakes it up again; AOD turned on by hand stays on.
+    var autoAodAt by remember { mutableStateOf(0L) }
+    val aodCapable = !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
+    LaunchedEffect(aodCapable, aod, hid.connected, settingsOpen) {
+        val secs = Settings.idleAodSeconds
+        if (!aodCapable || aod || !hid.connected || secs <= 0) return@LaunchedEffect
+        while (true) {
+            val left = dev.padbridge.Idle.lastInput + secs * 1000L - android.os.SystemClock.uptimeMillis()
+            if (left <= 0) { autoAodAt = android.os.SystemClock.uptimeMillis(); aod = true; break }
+            kotlinx.coroutines.delay(left)
+        }
+    }
+    LaunchedEffect(dev.padbridge.Idle.lastInput) {
+        if (autoAodAt > 0 && aod && dev.padbridge.Idle.lastInput > autoAodAt) { aod = false; autoAodAt = 0 }
+    }
+    LaunchedEffect(aod) { if (!aod) autoAodAt = 0 }
     // The switch in Settings can change it too.
     LaunchedEffect(settingsOpen) { if (!settingsOpen) fullscreen = Settings.fullscreenInput }
 

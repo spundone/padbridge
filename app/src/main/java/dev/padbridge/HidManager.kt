@@ -63,6 +63,7 @@ object HidManager {
     private fun notifyChanged() = main.post { listeners.forEach { it.onHidChanged() } }
 
     private fun setState(s: State, d: String = "") {
+        if (demo && s != State.CONNECTED) return // screenshot demo: stay "connected"
         state = s; detail = d
         Log.i(TAG, "state=$s $d")
         notifyChanged()
@@ -269,12 +270,43 @@ object HidManager {
             "only accepts real keyboards, mice and remotes" +
             (if (BuildConfig.ROOT_FEATURES) " (root mode can make the phone present as one)." else ".")
 
+    /**
+     * Android Auto is projected from the phone and takes input from the car's own screen and controls, so a car
+     * never sees Bluetooth keyboards for it; cars with Android Automotive built in accept one only if the
+     * carmaker left Bluetooth keyboard support on.
+     */
+    private fun carRefusalHint(d: BluetoothDevice): String =
+        "${name(d)} doesn't accept Bluetooth keyboards or mice. Android Auto runs on the phone and only takes input " +
+            "from the car's screen and controls; cars with Google built in accept a keyboard only if the carmaker allows it."
+
     private fun refusalHint(): String = when (Settings.hostOs) {
         HostOs.WINDOWS ->
             "Windows has HID turned off for this phone. On the PC open Control Panel › Devices and Printers, " +
                 "right-click the phone › Properties › Services, tick “Drivers for keyboard, mice, etc. (HID)”, " +
                 "then tap Connect again. No such option? Remove the phone on the PC and pair again with PadBridge open."
         else -> "Remove the phone on the computer and pair again with PadBridge open, so it sees the trackpad and keyboard."
+    }
+
+    // ------------------------------------------------------------------ screenshot demo (debug builds only)
+
+    /** Neutral, made-up hosts for README / store screenshots, so no real device names or addresses show. */
+    private val demoHosts = linkedMapOf(
+        "02:00:00:00:00:01" to "MacBook Pro",
+        "02:00:00:00:00:02" to "Work PC",
+        "02:00:00:00:00:03" to "Linux desktop",
+    )
+    @Volatile var demo = false; private set
+
+    /** Debug builds: pretend to be connected to "MacBook Pro" (`adb shell am start … --ez demo true`). */
+    fun startDemo() {
+        if (!BuildConfig.DEBUG) return
+        demo = true
+        Settings.hostOs = HostOs.MAC
+        main.postDelayed({
+            val a = adapter ?: return@postDelayed
+            host = a.getRemoteDevice(demoHosts.keys.first()); connectingTo = null
+            setState(State.CONNECTED, "Connected to MacBook Pro")
+        }, 2500)
     }
 
     // ------------------------------------------------------------------ phone-initiated pairing
@@ -434,7 +466,10 @@ object HidManager {
 
     /** Televisions, displays, set-top boxes and streaming sticks (not headphones or speakers). */
     fun isTv(d: BluetoothDevice): Boolean = try {
-        val c = d.bluetoothClass ?: return false
+        val c = d.bluetoothClass
+        // Unknown class (not seen yet, or a device that reports none): go by the name.
+        if (c == null || c.majorDeviceClass == BluetoothClass.Device.Major.MISC ||
+            c.majorDeviceClass == BluetoothClass.Device.Major.UNCATEGORIZED) return tvName.containsMatchIn(name(d).lowercase())
         // Some TVs misreport their minor class (one MediaTek TV says "car audio"), so trust a TV-ish name too.
         val n = name(d).lowercase()
         if (c.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO &&
@@ -453,6 +488,13 @@ object HidManager {
 
     fun isPhone(d: BluetoothDevice) = major(d) == BluetoothClass.Device.Major.PHONE
 
+    /** Car head units (car audio / hands-free), unless the name says it's really a TV that misreports its class. */
+    fun isCar(d: BluetoothDevice): Boolean = try {
+        val c = d.bluetoothClass
+        c != null && !isTv(d) && c.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO &&
+            (c.deviceClass == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO || c.deviceClass == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE)
+    } catch (_: SecurityException) { false }
+
     /** Something that can act as an HID host: computers, TVs, phones and tablets, or anything that has been one. */
     fun isHostLike(d: BluetoothDevice): Boolean {
         val m = major(d)
@@ -469,6 +511,7 @@ object HidManager {
     /** Computers the phone is bonded with, best candidates first. */
     fun bondedHosts(showAll: Boolean): List<BluetoothDevice> {
         val a = adapter ?: return emptyList()
+        if (demo) return demoHosts.keys.map { a.getRemoteDevice(it) }
         val all = try { a.bondedDevices?.toList() ?: emptyList() } catch (e: SecurityException) { emptyList() }
         val filtered = if (showAll) all else all.filter { isHostLike(it) }
         // One row per computer: a PC can be bonded twice (classic + an LE bond whose identity resolves to the same
@@ -496,7 +539,7 @@ object HidManager {
         try { adapter?.getRemoteDevice(it) } catch (_: Exception) { null }
     }
 
-    fun name(d: BluetoothDevice): String = try {
+    fun name(d: BluetoothDevice): String = if (demo && d.address in demoHosts) demoHosts.getValue(d.address) else try {
         (if (android.os.Build.VERSION.SDK_INT >= 30) d.alias else null) ?: d.name ?: d.address
     } catch (e: SecurityException) { d.address }
 
@@ -615,6 +658,7 @@ object HidManager {
                             setState(
                                 State.READY,
                                 when {
+                                    refused && isCar(device) -> carRefusalHint(device)
                                     refused && !isComputer(device) -> tvRefusalHint(device)
                                     refused -> "${name(device)} refused the trackpad and keyboard connection. " + refusalHint()
                                     noAnswer -> notAnswering(device)

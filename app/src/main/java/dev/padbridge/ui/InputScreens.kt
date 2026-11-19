@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -63,6 +66,7 @@ import androidx.compose.material.icons.rounded.KeyboardAlt
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.VerticalSplit
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.input.pointer.pointerInput
@@ -466,7 +470,7 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     )
 
     if (laptop) {
-        LaptopDeck(hid, modifier) { m -> Keys(m) }
+        LaptopDeck(hid, modifier, cfg) { m -> Keys(m) }
         return
     }
 
@@ -475,7 +479,13 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
         val maxH = maxHeight.value - handle
         val minH = 110f.coerceAtMost(maxH)
         // On tablets "fill" stops at about half the width tall, so keys stay key-shaped; the rest is trackpad.
-        val fill = if (tablet && resizable) minOf(maxH, maxWidth.value * 0.5f) else maxH
+        // On phones in portrait, "fill" stops when keys are about 1.2x as tall as wide (a short full keyboard
+        // with the trackpad above it, rather than tall skinny keys).
+        val fill = when {
+            tablet && resizable -> minOf(maxH, maxWidth.value * 0.5f)
+            !landscape && resizable -> minOf(maxH, maxWidth.value / layout.cols * 1.2f * layout.rows + 8f)
+            else -> maxH
+        }
         val h = if (!resizable || heightDp <= 0f) fill else heightDp.coerceIn(minH, maxH)
         val freeH = maxH - h
         // Narrow keyboard pushed to one side: the rest of the row becomes a trackpad (e.g. numpad + pad).
@@ -542,21 +552,159 @@ private fun rememberLaptopDeck(cfg: Int): Boolean {
 }
 
 /**
- * Laptop deck: the keyboard across the top and a trackpad centered under it, sized like a laptop's
- * (about 42% of the keyboard's width). The keyboard is capped in width so keys stay key-sized on big tablets.
+ * Laptop deck: the keyboard across the top and a trackpad under it, like a laptop's palm rest.
+ *
+ * Adjustable (per orientation, unless locked in the layout sheet):
+ * - the bar under the keys: drag up/down to resize the keyboard, double-tap to reset;
+ * - the grip under the trackpad: drag sideways to move it, double-tap to center it again;
+ * - the corner grips under the trackpad: drag to make it wider or narrower.
+ * Keyboard width and a full-width trackpad are set in the layout sheet.
  */
 @Composable
-private fun LaptopDeck(hid: HidUi, modifier: Modifier, keys: @Composable (Modifier) -> Unit) {
-    androidx.compose.foundation.layout.BoxWithConstraints(modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.TopCenter) {
-        val deckW = minOf(maxWidth, 1100.dp)
-        // Keys take ~58% of the height (capped so they don't get taller than wide-ish), the pad the rest.
-        val keysH = minOf(maxHeight * 0.58f, deckW * 0.36f)
-        Column(Modifier.width(deckW).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            keys(Modifier.fillMaxWidth().height(keysH))
-            Spacer(Modifier.height(12.dp))
-            FreeSpacePad(hid, Modifier.fillMaxWidth(0.42f).weight(1f).padding(bottom = 4.dp))
+private fun LaptopDeck(hid: HidUi, modifier: Modifier, cfg: Int, keys: @Composable (Modifier) -> Unit) {
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    var keysFrac by remember(landscape, cfg) { mutableStateOf(Settings.deckKeys(landscape)) }
+    var padW by remember(landscape, cfg) { mutableStateOf(Settings.deckPadWidth(landscape)) }
+    var padX by remember(landscape, cfg) { mutableStateOf(Settings.deckPadPos(landscape)) }
+    val kbW = remember(landscape, cfg) { Settings.deckKbWidth(landscape) }
+    val full = remember(landscape, cfg) { Settings.deckPadFull(landscape) }
+    val locked = remember(cfg) { Settings.deckLocked }
+    val grip = MaterialTheme.colorScheme.outlineVariant
+    val gripActive = MaterialTheme.colorScheme.primary
+    var active by remember { mutableStateOf("") }
+    // How far the screen's center is from this area's center (dp). The navigation rail on tablets pushes the
+    // area right, which would leave a "centered" keyboard off-center on the device itself.
+    val rootView = androidx.compose.ui.platform.LocalView.current.rootView
+    var shift by remember { mutableStateOf(0f) }
+
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        modifier.padding(horizontal = 8.dp).onGloballyPositioned { c ->
+            val left = c.positionInWindow().x
+            val s = (rootView.width / 2f - (left + c.size.width / 2f)) / density
+            if (kotlin.math.abs(s - shift) > 0.5f) shift = s
+        }
+    ) {
+        val totalW = maxWidth.value
+        // The widest strip of this area that is symmetric around the screen's center. Keys and the trackpad are
+        // laid out in it; a full-width trackpad still uses the whole area. Never narrower than 75% of the area.
+        val frameW = (totalW - 2f * kotlin.math.abs(shift)).coerceIn(totalW * 0.75f, totalW)
+        val frameX = if (shift < 0f) 0f else totalW - frameW
+        val handleH = if (locked) 12f else 20f
+        val gripH = if (locked || full) 4f else 22f
+        val avail = maxHeight.value - handleH - gripH
+        val deckW = (if (kbW > 0f) totalW * kbW else minOf(totalW, 1100f)).coerceAtMost(frameW)
+        val autoKeys = minOf(avail * 0.62f, deckW * 0.36f)
+        val minKeys = 120f.coerceAtMost(avail * 0.5f)
+        val maxKeys = (avail - 90f).coerceAtLeast(minKeys)
+        val keysH = (if (keysFrac > 0f) avail * keysFrac else autoKeys).coerceIn(minKeys, maxKeys)
+        val pw = if (full) totalW else (frameW * padW).coerceIn(minOf(160f, frameW), frameW)
+        val px = if (full) 0f else frameX + (frameW - pw) * padX.coerceIn(0f, 1f)
+
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.offset(x = frameX.dp).width(frameW.dp).height(keysH.dp), contentAlignment = Alignment.Center) {
+                keys(Modifier.width(deckW.dp).fillMaxHeight())
+            }
+            // Keyboard height bar.
+            Box(
+                Modifier.fillMaxWidth().height(handleH.dp).then(
+                    if (locked) Modifier else Modifier
+                        .pointerInput(landscape, avail) {
+                            detectVerticalDragGestures(
+                                onDragStart = { active = "keys" },
+                                onDragEnd = { active = ""; Settings.setDeckKeys(landscape, keysFrac) },
+                            ) { change, dy ->
+                                change.consume()
+                                val cur = if (keysFrac > 0f) avail * keysFrac else autoKeys
+                                keysFrac = ((cur + dy / density).coerceIn(minKeys, maxKeys)) / avail
+                            }
+                        }
+                        .pointerInput(landscape) {
+                            detectTapGestures(onDoubleTap = { keysFrac = 0f; Settings.setDeckKeys(landscape, 0f) })
+                        }
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!locked) Box(
+                    Modifier.offset(x = (frameX + frameW / 2f - totalW / 2f).dp).size(width = 48.dp, height = 4.dp)
+                        .background(if (active == "keys") gripActive else grip, androidx.compose.foundation.shape.CircleShape)
+                )
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                FreeSpacePad(
+                    hid,
+                    Modifier.offset(x = px.dp).width(pw.dp).fillMaxHeight().padding(bottom = gripH.dp),
+                )
+                if (!locked && !full) {
+                    // Pills drawn under the pad: resize corners at both ends, move grip in the middle.
+                    Row(
+                        Modifier.align(Alignment.BottomStart).offset(x = px.dp).width(pw.dp).height(gripH.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        GripPill(16, active == "left", grip, gripActive)
+                        GripPill(40, active == "move", grip, gripActive)
+                        GripPill(16, active == "right", grip, gripActive)
+                    }
+                    // Touch handling on a strip that doesn't move, so drags stay smooth while the pad moves.
+                    Box(
+                        Modifier.align(Alignment.BottomStart).fillMaxWidth().height(gripH.dp)
+                            .pointerInput(landscape, frameW, frameX) {
+                                fun curW() = (frameW * padW).coerceIn(minOf(160f, frameW), frameW)
+                                fun curX() = frameX + (frameW - curW()) * padX.coerceIn(0f, 1f)
+                                detectHorizontalDragGestures(
+                                    onDragStart = { o ->
+                                        val x = o.x / density; val l = curX(); val r = l + curW()
+                                        active = when {
+                                            x < l - 24f || x > r + 24f -> ""
+                                            x < l + 44f -> "left"
+                                            x > r - 44f -> "right"
+                                            else -> "move"
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        active = ""
+                                        Settings.setDeckPadWidth(landscape, padW); Settings.setDeckPadPos(landscape, padX)
+                                    },
+                                ) { change, dxPx ->
+                                    change.consume()
+                                    val dx = dxPx / density
+                                    val w = curW(); val l = curX(); val r = l + w
+                                    when (active) {
+                                        "move" -> if (frameW - w > 0f) padX = ((l + dx - frameX) / (frameW - w)).coerceIn(0f, 1f)
+                                        "left" -> {
+                                            val nw = (w - dx).coerceIn(160f, r - frameX)
+                                            padW = nw / frameW
+                                            padX = if (frameW - nw > 0f) (r - nw - frameX) / (frameW - nw) else 0.5f
+                                        }
+                                        "right" -> {
+                                            val nw = (w + dx).coerceIn(160f, frameX + frameW - l)
+                                            padW = nw / frameW
+                                            padX = if (frameW - nw > 0f) (l - frameX) / (frameW - nw) else 0.5f
+                                        }
+                                    }
+                                }
+                            }
+                            .pointerInput(landscape) {
+                                detectTapGestures(onDoubleTap = {
+                                    padX = 0.5f; padW = 0.42f
+                                    Settings.setDeckPadPos(landscape, 0.5f); Settings.setDeckPadWidth(landscape, 0.42f)
+                                })
+                            }
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun GripPill(widthDp: Int, active: Boolean, color: androidx.compose.ui.graphics.Color, activeColor: androidx.compose.ui.graphics.Color) {
+    Box(
+        Modifier.padding(horizontal = 12.dp).size(width = widthDp.dp, height = 4.dp)
+            .background(if (active) activeColor else color, androidx.compose.foundation.shape.CircleShape)
+    )
 }
 
 /** A compact trackpad for space the keyboard doesn't use: same gestures, no hint text. */
@@ -584,6 +732,10 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
     val tabletLand = isTablet() && landscape
     var laptop by remember { mutableStateOf(Settings.kbLaptop(landscape, tabletLand)) }
+    var deckKbW by remember { mutableStateOf(Settings.deckKbWidth(landscape)) }
+    var padFull by remember { mutableStateOf(Settings.deckPadFull(landscape)) }
+    var deckLocked by remember { mutableStateOf(Settings.deckLocked) }
+    var stylus by remember { mutableStateOf(Settings.stylus) }
     val icons = mapOf(
         dev.padbridge.KbLayout.FULL to Icons.Rounded.Keyboard,
         dev.padbridge.KbLayout.FULL_NUMPAD to Icons.Rounded.Calculate,
@@ -591,6 +743,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
         dev.padbridge.KbLayout.SPLIT to Icons.Rounded.VerticalSplit,
         dev.padbridge.KbLayout.GAMING to Icons.Rounded.SportsEsports,
         dev.padbridge.KbLayout.NUMPAD to Icons.Rounded.Dialpad,
+        dev.padbridge.KbLayout.PHONE to Icons.Rounded.Smartphone,
     )
 
     androidx.compose.material3.ModalBottomSheet(
@@ -634,9 +787,36 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
             }
 
             if (laptop) item {
-                Text("The laptop deck sizes the keyboard and trackpad to the screen.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 12.dp))
+                Column(Modifier.padding(top = 16.dp)) {
+                    Text("Laptop deck", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    Text(
+                        "Keyboard width · " + if (deckKbW <= 0f) "auto" else "${(deckKbW * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    androidx.compose.material3.Slider(
+                        value = if (deckKbW <= 0f) 1f else deckKbW, valueRange = 0.5f..1f, steps = 9,
+                        onValueChange = { deckKbW = it; Settings.setDeckKbWidth(landscape, it); onChanged() },
+                    )
+                    Text(
+                        "Drag the bar under the keys to change their height. Under the trackpad, drag the middle grip to " +
+                            "move it and the end grips to resize it. Double-tap a grip to reset it.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    SheetSwitch("Full-width trackpad", padFull, 0, 3) {
+                        padFull = it; Settings.setDeckPadFull(landscape, it); onChanged()
+                    }
+                    SheetSwitch("Lock layout (hide the handles)", deckLocked, 1, 3) {
+                        deckLocked = it; Settings.deckLocked = it; onChanged()
+                    }
+                    SheetSwitch("S Pen: hover moves, touch clicks, palm rejection", stylus, 2, 3) {
+                        stylus = it; Settings.stylus = it; onChanged()
+                    }
+                    androidx.compose.material3.TextButton(onClick = {
+                        Settings.resetDeck(landscape); deckKbW = 0f; padFull = false; onChanged()
+                    }) { Text("Reset deck") }
+                }
             }
             if (!laptop) item { Text("Size", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }

@@ -35,6 +35,7 @@ object Updater {
     private var apkUrl: String? = null
     private var apkDigest: String? = null
     private var apkVersion: String? = null
+    private var apkNotes = ""
     @Volatile private var busy = false
 
     private fun post(s: UpdateState) = main.post { Updates.state = s }
@@ -78,6 +79,7 @@ object Updater {
                     apkDigest = asset.optString("digest").takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:")
                     apkVersion = version
                     val notes = json.optString("body").trim()
+                    apkNotes = notes
                     if (!manual && Settings.skippedUpdate == version) post(UpdateState.Idle)
                     else post(UpdateState.Available(version, notes))
                 }
@@ -262,10 +264,12 @@ object Updater {
                     else -> {
                         val msg = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                         Log.w(TAG, "install failed: $msg")
-                        Updates.state = UpdateState.Failed(
-                            if (i.getIntExtra(PackageInstaller.EXTRA_STATUS, 0) == PackageInstaller.STATUS_FAILURE_ABORTED)
-                                "Update cancelled." else "Android couldn't install the update${msg?.let { ": $it" } ?: "."}"
-                        )
+                        val v = apkVersion
+                        // Cancelled (or a permission screen was backed out of): keep the offer so the banner's
+                        // Update button can retry, instead of hiding it.
+                        Updates.state = if (i.getIntExtra(PackageInstaller.EXTRA_STATUS, 0) == PackageInstaller.STATUS_FAILURE_ABORTED && v != null)
+                            UpdateState.Available(v, apkNotes)
+                        else UpdateState.Failed("Android couldn't install the update${msg?.let { ": $it" } ?: "."}")
                     }
                 }
             }

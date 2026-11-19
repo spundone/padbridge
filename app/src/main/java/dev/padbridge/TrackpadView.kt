@@ -159,7 +159,74 @@ class TrackpadView(ctx: Context) : View(ctx) {
         if (ptpLastFrame.isNotEmpty()) postDelayed(ptpKeepAlive, 50)
     }
 
+    // ------------------------------------------------------------------ S Pen / stylus
+
+    private fun isPen(e: MotionEvent, i: Int = 0): Boolean {
+        val t = e.getToolType(i)
+        return t == MotionEvent.TOOL_TYPE_STYLUS || t == MotionEvent.TOOL_TYPE_ERASER
+    }
+
+    /** The pen is touching or hovering; fingers are ignored until shortly after it leaves (palm rejection). */
+    private var penNearUntil = 0L
+    private var penTouching = false
+    private var penButton = 0
+    private var penSideDown = false
+    private val penLast = PointF()
+    private var penHasLast = false
+
+    private fun penNear() = penTouching || SystemClock.uptimeMillis() < penNearUntil
+
+    private fun penMove(x: Float, y: Float) {
+        if (penHasLast) {
+            // Precise and linear: no acceleration, so the pen feels like a drawing tablet in mouse mode.
+            val gain = 1.6f * Settings.pointerSpeed
+            HidManager.move((x - penLast.x) / density * gain, (y - penLast.y) / density * gain)
+        }
+        penLast.set(x, y); penHasLast = true
+    }
+
+    /** Hovering pen: move the pointer; the side button clicks right. */
+    override fun onHoverEvent(e: MotionEvent): Boolean {
+        if (!Settings.stylus || !isPen(e)) return super.onHoverEvent(e)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_HOVER_ENTER -> { penHasLast = false; penLast.set(e.x, e.y); penHasLast = true }
+            MotionEvent.ACTION_HOVER_MOVE -> penMove(e.x, e.y)
+            MotionEvent.ACTION_HOVER_EXIT -> penHasLast = false
+        }
+        penNearUntil = SystemClock.uptimeMillis() + 600
+        val side = e.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
+        if (side && !penSideDown) HidManager.click(BTN_RIGHT)
+        penSideDown = side
+        return true
+    }
+
+    /** Pen on the glass: holds a button while touching (left, or right with the side button pressed). */
+    private fun handlePen(e: MotionEvent) {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                cancel(); stopMomentum()
+                penTouching = true
+                penButton = if (e.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0 ||
+                    e.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER) BTN_RIGHT else BTN_LEFT
+                penHasLast = false; penLast.set(e.x, e.y); penHasLast = true
+                HidManager.setButton(penButton, true)
+            }
+            MotionEvent.ACTION_MOVE -> penMove(e.x, e.y)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                HidManager.setButton(penButton, false)
+                penTouching = false
+                penNearUntil = SystemClock.uptimeMillis() + 600
+            }
+        }
+    }
+
     override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (Settings.stylus) {
+            if (penTouching || (e.actionMasked == MotionEvent.ACTION_DOWN && isPen(e))) { handlePen(e); return true }
+            // Palm rejection: a hand resting on the screen while the pen is near does nothing.
+            if (penNear() && e.actionMasked == MotionEvent.ACTION_DOWN) return false
+        }
         if (HidManager.ptpActive) { handlePtp(e); invalidate(); return true }
         velocity?.addMovement(e)
         when (e.actionMasked) {

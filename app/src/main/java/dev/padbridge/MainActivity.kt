@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
         Haptics.init(this)
 
         requestedDest.value = intent?.getStringExtra(EXTRA_DEST)
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("demo", false) == true) HidManager.startDemo()
         setContent {
             PadBridgeTheme { PadBridgeApp(hid.value, this) }
         }
@@ -90,6 +91,8 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
         onHidChanged()
         if (Perms.hasConnect(this)) { HidService.start(this); HidManager.restart(this) }
         if (!updateChecked && Settings.setupDone) { updateChecked = true; Updater.autoCheck(this) }
+        // A failure from before (e.g. network access was off, since fixed in Settings) shouldn't linger.
+        if (Updates.state is UpdateState.Failed) Updates.state = UpdateState.Idle
         else if (Settings.setupDone) HidManager.start(this) // shows "Permission needed"
     }
 
@@ -114,6 +117,12 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
     }
 
     private var aod = false
+
+    /** Any touch or key press: resets the idle timer for dimming to AOD. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        Idle.touched()
+    }
 
     /** AOD mode: screen stays on at the panel's lowest brightness while input keeps working. */
     fun setAod(on: Boolean) {

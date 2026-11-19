@@ -7,6 +7,37 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [Unreleased]
+
+### Added
+- **Adjustable laptop deck** (tablets): drag the bar under the keys to resize the keyboard; under the trackpad,
+  drag the middle grip to move it and the end grips to make it wider or narrower (double-tap to reset). The layout
+  sheet adds keyboard width, a **full-width trackpad**, **Lock layout** to hide the handles, and **Reset deck**.
+  Everything is remembered per orientation. The deck is centered on the screen itself rather than on the space beside the navigation
+  rail, so the keyboard sits in the middle of the tablet.
+- **S Pen and stylus support** on every trackpad (on by default; Settings › Trackpad): hover moves the pointer,
+  touching clicks or drags, the pen button (or the eraser end) right-clicks, and fingers are ignored while the pen
+  is near the screen, so you can rest your palm.
+
+- **Dim when idle:** on the trackpad, remote and air mouse, PadBridge switches to the dim outline (AOD) mode
+  after a minute without a touch while connected; a tap brings the normal screen back. Settings › General ›
+  Dim to outline mode when idle (never, 15 s – 5 min). AOD turned on by hand stays on.
+- **Phone** keyboard layout: ten columns with big keys like a phone keyboard; Fn gives F1–F12, the symbols, and
+  Home/End/PgUp/PgDn.
+- README screenshots (phone and tablet), captured with a debug-only demo mode that shows no real device names.
+
+### Changed
+- **Pure black is the default** dark theme (Settings › Appearance to turn it off).
+- On phones in portrait the keyboard no longer stretches to fill the screen with tall, skinny keys: it stays short
+  with the trackpad above it (drag the bar to resize as before).
+
+### Fixed
+- The "Nearby devices" sheet (setup wizard and Connect tab) now closes by itself once a device connects.
+- Car head units get a car icon, and when a car refuses the keyboard and mouse connection PadBridge explains why
+  (Android Auto takes input only from the car's own controls) instead of suggesting a re-pair.
+- Updates: cancelling Android's install prompt keeps the update banner so you can retry; an old "couldn't reach
+  GitHub" message clears when you come back to the app; the banner's buttons are easier to read.
+
 ## [1.2.1] – 2026-11-19
 
 ### Fixed

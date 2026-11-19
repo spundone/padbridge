@@ -13,6 +13,25 @@ build has no internet permission, and the GitHub build uses the internet only to
 > **Status:** 1.0. Pairing and input are verified on a Mac and a Windows 11 PC from a Xiaomi 14 (Android 17).
 > Other combinations should work but are untested; see [Known limits](#known-limits).
 
+## Screenshots
+
+<p>
+  <img src="docs/screenshots/phone-connect.png" width="19%" alt="Connect: connected to a MacBook Pro, other paired computers listed">
+  <img src="docs/screenshots/phone-trackpad.png" width="19%" alt="Trackpad">
+  <img src="docs/screenshots/phone-keyboard.png" width="19%" alt="Keyboard: shortcut and media rows, trackpad, full keyboard">
+  <img src="docs/screenshots/phone-remote.png" width="19%" alt="TV remote with clickpad">
+  <img src="docs/screenshots/phone-settings.png" width="19%" alt="Settings">
+</p>
+<p>
+  <img src="docs/screenshots/tablet-laptop-deck.png" width="49%" alt="Tablet: laptop deck, keyboard with a trackpad below">
+  <img src="docs/screenshots/phone-gamepad.png" width="49%" alt="Gamepad">
+</p>
+<p>
+  <img src="docs/screenshots/tablet-connect.png" width="32%" alt="Tablet: two-pane Connect screen">
+  <img src="docs/screenshots/tablet-trackpad.png" width="32%" alt="Tablet: trackpad">
+  <img src="docs/screenshots/tablet-remote.png" width="32%" alt="Tablet: remote">
+</p>
+
 ## Features
 
 | Mode | What it does |

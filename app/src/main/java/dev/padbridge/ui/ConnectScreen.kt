@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.DesktopWindows
@@ -253,6 +254,12 @@ internal fun NearbySheet(hid: HidUi, onDismiss: () -> Unit) {
         if (permitted) HidManager.startDiscovery() else launcher.launch(dev.padbridge.Perms.scan())
     }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { HidManager.stopDiscovery() } }
+    // Close once a device connects. The sheet can be opened while already connected (to add another device),
+    // so only a connection to a different device than the one at opening counts.
+    val openedWith = remember { if (hid.connected) hid.hostAddress else null }
+    androidx.compose.runtime.LaunchedEffect(hid.connected, hid.hostAddress) {
+        if (hid.connected && hid.hostAddress != openedWith) onDismiss()
+    }
 
     // Computers, TVs and phones first, then other named devices; skip nameless ones (usually random addresses).
     val devices = remember(hid.version) {
@@ -503,5 +510,6 @@ private fun hostIcon(d: android.bluetooth.BluetoothDevice, fallback: androidx.co
     HidManager.isComputer(d) -> Icons.Rounded.Computer
     HidManager.isTv(d) -> Icons.Rounded.Tv
     HidManager.isPhone(d) -> Icons.Rounded.Smartphone
+    HidManager.isCar(d) -> Icons.Rounded.DirectionsCar
     else -> fallback
 }

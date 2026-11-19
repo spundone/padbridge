@@ -87,10 +87,18 @@ fun UpdateBanner() {
                 if (s is UpdateState.Available || (s is UpdateState.Ready && Updater.SOURCE == "Google Play")) {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                         if (s is UpdateState.Available) {
-                            TextButton(onClick = { Updater.skip(s.version) }) { Text("Not now") }
-                            if (s.notes.isNotBlank()) TextButton(onClick = { notes = true }) { Text("What's new") }
+                            // Text buttons in the banner's own color; the default primary is low-contrast on tertiary.
+                            val onBanner = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+                            TextButton(onClick = { Updater.skip(s.version) }, colors = onBanner) { Text("Not now") }
+                            if (s.notes.isNotBlank()) TextButton(onClick = { notes = true }, colors = onBanner) { Text("What's new") }
                         }
-                        Button(onClick = { Updater.start(activity) }, shapes = ButtonDefaults.shapes()) {
+                        Button(
+                            onClick = { Updater.start(activity) }, shapes = ButtonDefaults.shapes(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary,
+                                contentColor = MaterialTheme.colorScheme.onTertiary,
+                            ),
+                        ) {
                             Text(if (s is UpdateState.Ready) "Restart" else "Update")
                         }
                     }
