@@ -7,7 +7,7 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
-## [Unreleased]
+## [1.3.0] – 2026-11-19
 
 ### Added
 - **Adjustable laptop deck** (tablets): drag the bar under the keys to resize the keyboard; under the trackpad,

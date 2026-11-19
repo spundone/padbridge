@@ -1,0 +1,4 @@
+• Tablets: adjustable laptop deck (resize the keys, move and resize the trackpad, full-width trackpad), centered on screen.
+• S Pen and stylus: hover moves the pointer, touch clicks, palm rejection.
+• Dims to the outline mode when idle; pure black theme by default; shorter portrait keyboard with a trackpad above.
+• Pairing sheet closes once a device connects; clearer messages for TVs and cars.
