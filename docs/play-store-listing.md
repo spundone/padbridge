@@ -17,7 +17,7 @@ PadBridge: Trackpad & Keyboard
 Use your phone as a Bluetooth trackpad, keyboard, TV remote and gamepad.
 ```
 
-**Full description** (4000 max, about 3080 used)
+**Full description** (4000 max, about 3378 used)
 
 ```
 PadBridge turns your Android phone into a Bluetooth trackpad, keyboard, TV remote, air mouse and gamepad for Windows, macOS, Linux and TVs.
@@ -32,6 +32,7 @@ TRACKPAD
 • Samsung DeX-style press-and-hold drag, resting-finger rejection and a DeX gesture preset
 • Edge scroll strips, optional click buttons and three-finger drag
 • Full display mode uses every pixel of the screen
+• Native touchpad (beta): on Windows and Linux the computer can read real finger positions for its own gestures and smooth scrolling
 • AOD mode: dim outlines on black at minimum brightness, for long sessions
 
 KEYBOARD
@@ -52,6 +53,7 @@ AIR MOUSE
 
 GAMEPAD
 • Two analog sticks, D-pad, ABXY with Xbox or PlayStation labels, bumpers, triggers and system buttons
+• Presets for racing (pedals and tilt steering), first-person (look pad and gyro aim), third-person and retro games
 • Gyro aiming and tilt steering
 • Haptic feedback
 
@@ -68,7 +70,7 @@ PadBridge has no internet permission. It collects no data, shows no ads and need
 GOOD TO KNOW
 • Requires Android 9 or newer with Bluetooth HID Device support. A few custom ROMs disable it.
 • On Windows, enable "Drivers for keyboard, mice, etc. (HID)" for the phone under Control Panel › Devices and Printers › Properties › Services. PadBridge shows these steps when needed.
-• Multi-finger gestures are sent as each system's keyboard shortcuts, because macOS and Windows don't accept multitouch from non-certified touchpads.
+• Multi-finger gestures are sent as each system's keyboard shortcuts, because macOS doesn't accept multitouch from non-Apple touchpads. On Windows and Linux you can try the native touchpad instead.
 • The gamepad is a standard HID gamepad, not an Xbox or PlayStation controller. On Windows, use Steam Input for XInput-only games.
 • Typing from the phone keyboard assumes a US keyboard layout on the computer.
 • Apple TV support is unverified.
@@ -180,3 +182,5 @@ Haptic feedback for clicks, key presses and gamepad buttons. Can be turned off i
 - Build the `play` flavor (`./gradlew bundlePlayRelease`); it excludes root mode.
 - Upload with an upload key; enroll in Play App Signing. Never upload a build signed with the shared dev key.
 - Screenshots: see [screenshots/README.md](screenshots/README.md).
+- Store-ready assets and text live in `fastlane/metadata/android/en-US/` (fastlane supply layout): icon 512², feature
+  graphic 1024×500, seven phone screenshots, title, descriptions and per-versionCode changelogs.
