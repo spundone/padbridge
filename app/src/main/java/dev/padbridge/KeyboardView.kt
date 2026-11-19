@@ -330,6 +330,7 @@ class KeyboardView(ctx: Context) : View(ctx) {
             if (code == 0) return
             heldCodes[k] = code
             modHeld.filterValues { it }.keys.forEach { modUsed.add(it) }
+            Typing.keyPressed()
         }
         Haptics.tick()
         push()
@@ -367,6 +368,8 @@ class KeyboardView(ctx: Context) : View(ctx) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
                 val i = e.actionIndex
+                // The heel of a hand resting on the keys doesn't type.
+                if (Settings.palmRejection && Typing.isPalm(e, i, resources.displayMetrics.ydpi)) return true
                 keyAt(e.getX(i), e.getY(i))?.let { k ->
                     pointerKeys[e.getPointerId(i)] = k
                     press(k)

@@ -267,6 +267,14 @@ object Settings {
         get() = bool("restReject", true)
         set(v) = putBool("restReject", v)
 
+    /**
+     * Laptop-style palm rejection: touches that land on the trackpad while you type, and palm-sized contacts,
+     * are ignored until lifted.
+     */
+    var palmRejection: Boolean
+        get() = bool("palmReject", true)
+        set(v) = putBool("palmReject", v)
+
     /** Max gap between taps of a double tap / tap-and-drag, in ms. */
     var doubleTapMs: Float
         get() = float("doubleTapMs", 300f)

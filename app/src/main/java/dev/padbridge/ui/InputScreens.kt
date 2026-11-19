@@ -780,6 +780,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var padFull by remember { mutableStateOf(Settings.deckPadFull(landscape)) }
     var deckLocked by remember { mutableStateOf(Settings.deckLocked) }
     var stylus by remember { mutableStateOf(Settings.stylus) }
+    var palm by remember { mutableStateOf(Settings.palmRejection) }
     val icons = mapOf(
         dev.padbridge.KbLayout.FULL to Icons.Rounded.Keyboard,
         dev.padbridge.KbLayout.FULL_NUMPAD to Icons.Rounded.Calculate,
@@ -864,13 +865,16 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
-                    SheetSwitch("Full-width trackpad", padFull, 0, 3) {
+                    SheetSwitch("Full-width trackpad", padFull, 0, 4) {
                         padFull = it; Settings.setDeckPadFull(landscape, it); onChanged()
                     }
-                    SheetSwitch("Lock layout (hide the handles)", deckLocked, 1, 3) {
+                    SheetSwitch("Lock layout (hide the handles)", deckLocked, 1, 4) {
                         deckLocked = it; Settings.deckLocked = it; onChanged()
                     }
-                    SheetSwitch("S Pen: hover moves, touch clicks, palm rejection", stylus, 2, 3) {
+                    SheetSwitch("Palm rejection: ignore the trackpad while typing", palm, 2, 4) {
+                        palm = it; Settings.palmRejection = it; onChanged()
+                    }
+                    SheetSwitch("S Pen: hover moves, touch clicks, palm rejection", stylus, 3, 4) {
                         stylus = it; Settings.stylus = it; onChanged()
                     }
                     androidx.compose.material3.TextButton(onClick = {

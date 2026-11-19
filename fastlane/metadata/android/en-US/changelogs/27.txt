@@ -1,0 +1,2 @@
+• Palm rejection on the keyboard's trackpad: touches while you type and palm-sized contacts are ignored, like a laptop.
+• Settings › About: What's new shows the changes in every version, plus an About the developer card.

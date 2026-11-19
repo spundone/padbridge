@@ -154,23 +154,27 @@ fun SettingsScreen(
                             6, 7, Settings.twoFingerNavigate, key = osVersion) { Settings.twoFingerNavigate = it }
                     }
                     item { SectionHeader("Touch") }
-                    item { SwitchRow("Tap to click", null, 0, 5, Settings.tapToClick) { Settings.tapToClick = it } }
+                    item { SwitchRow("Tap to click", null, 0, 6, Settings.tapToClick) { Settings.tapToClick = it } }
                     item {
-                        SliderRow("Double-tap window", 1, 5, Settings.doubleTapMs, range = 150f..600f, steps = 8,
+                        SliderRow("Double-tap window", 1, 6, Settings.doubleTapMs, range = 150f..600f, steps = 8,
                             format = { "${it.toInt()} ms" }) { Settings.doubleTapMs = it }
                     }
                     item {
                         SwitchRow("Ignore resting fingers", "A finger left still on the pad doesn't count, like Samsung DeX",
-                            2, 5, Settings.restRejection) { Settings.restRejection = it }
+                            2, 6, Settings.restRejection) { Settings.restRejection = it }
                     }
                     item {
-                        SwitchRow("Show click buttons", "Left / right buttons under the trackpad", 3, 5, Settings.showClickButtons) {
+                        SwitchRow("Palm rejection", "Ignore the trackpad for a moment while you type on the keyboard, " +
+                            "and ignore palm-sized touches, like a laptop", 3, 6, Settings.palmRejection) { Settings.palmRejection = it }
+                    }
+                    item {
+                        SwitchRow("Show click buttons", "Left / right buttons under the trackpad", 4, 6, Settings.showClickButtons) {
                             Settings.showClickButtons = it
                         }
                     }
                     item {
                         SwitchRow("S Pen and stylus", "Hover to move the pointer, touch to click or drag, pen button for right " +
-                            "click. Your palm is ignored while the pen is near", 4, 5, Settings.stylus) { Settings.stylus = it }
+                            "click. Your palm is ignored while the pen is near", 5, 6, Settings.stylus) { Settings.stylus = it }
                     }
 
                     item { SectionHeader("Native touchpad (beta)") }
@@ -308,6 +312,7 @@ fun SettingsScreen(
                             ) { Settings.autoUpdateCheck = it }
                         }
                     }
+                    item { Column(Modifier.padding(top = 16.dp)) { AboutDeveloper() } }
 
                     item {
                         Button(
@@ -544,11 +549,13 @@ const val REPO_URL = "https://github.com/spundone/padbridge"
 private fun AboutSection(activity: MainActivity) {
     val ctx = LocalContext.current
     var licenses by remember { mutableStateOf(false) }
+    var whatsNew by remember { mutableStateOf(false) }
     fun open(url: String) = try {
         ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
     } catch (_: Exception) {}
     val rows = listOf(
         Triple("PadBridge ${activity.versionName()}", "${dev.padbridge.BuildConfig.DIST} build · HID descriptor v${HidDescriptor.VERSION}") { },
+        Triple("What's new", "Changes in each version") { whatsNew = true },
         Triple("Check for updates", updateSubtitle(dev.padbridge.Updates.state)) { onUpdateRowClick(activity) },
         Triple("Source code", "github.com/spundone/padbridge") { open(REPO_URL) },
         Triple("Report a problem", "Open an issue on GitHub") { open("$REPO_URL/issues/new") },
@@ -565,6 +572,7 @@ private fun AboutSection(activity: MainActivity) {
             ) { Text(title) }
         }
     }
+    if (whatsNew) WhatsNewSheet(activity.versionName().substringBefore("-")) { whatsNew = false }
     if (licenses) androidx.compose.material3.AlertDialog(
         onDismissRequest = { licenses = false },
         confirmButton = { androidx.compose.material3.TextButton(onClick = { licenses = false }) { Text("Close") } },
@@ -639,7 +647,7 @@ enum class SettingsPage(
     MOTION("Air mouse & gyro", { "Phone motion for the air mouse and gamepad" }, Icons.Rounded.ScreenRotation),
     APPEARANCE("Appearance", { "Theme, wallpaper colors and pure black" }, Icons.Rounded.Palette),
     GENERAL("General", { "Computer type, reconnect, haptics, setup" }, Icons.Rounded.Tune),
-    ABOUT("About", { "Version, source code and licenses" }, Icons.Rounded.Info),
+    ABOUT("About", { "What's new, updates and the developer" }, Icons.Rounded.Info),
 }
 
 @Composable

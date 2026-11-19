@@ -7,6 +7,16 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [1.3.2] – 2026-11-19
+
+### Added
+- Palm rejection for the keyboard's trackpad, like a laptop's. A touch that lands on the trackpad within a moment of
+  typing is ignored until it lifts, a hand resting still while you type no longer taps or long-presses, and
+  palm-sized contacts are ignored on the trackpad and the keys. On by default; switch it off in Settings ›
+  Trackpad or in the laptop section of the keyboard layout sheet.
+- Settings › About: **What's new**, the changelog for every version in the app, and an About the developer card
+  with a UPI donation (GitHub build only).
+
 ## [1.3.1] – 2026-11-19
 
 ### Added

@@ -2,6 +2,13 @@
 <!-- GitHub build only: in-app updates download the latest release APK and install it. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Donate in Settings › About: see which UPI apps can pay, or copy the UPI ID if none. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+    </queries>
     <!-- Tell "offline" apart from "network access turned off for PadBridge" before checking. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

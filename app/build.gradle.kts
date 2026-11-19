@@ -23,8 +23,8 @@ android {
         applicationId = "dev.padbridge"
         minSdk = 28
         targetSdk = 36
-        versionCode = 26
-        versionName = "1.3.1"
+        versionCode = 27
+        versionName = "1.3.2"
     }
 
     // github: everything, including experimental root mode. play: Play Store build without root features.
@@ -34,11 +34,14 @@ android {
             dimension = "dist"
             buildConfigField("boolean", "ROOT_FEATURES", "true")
             buildConfigField("String", "DIST", "\"github\"")
+            // UPI donations to the developer. Play counts tips as digital purchases (Play Billing only), so not there.
+            buildConfigField("boolean", "DONATE", "true")
         }
         create("play") {
             dimension = "dist"
             buildConfigField("boolean", "ROOT_FEATURES", "false")
             buildConfigField("String", "DIST", "\"play\"")
+            buildConfigField("boolean", "DONATE", "false")
         }
     }
 
@@ -103,4 +106,23 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     // Play build only: Google Play's in-app updates (talks to the Play Store app, no INTERNET permission).
     "playImplementation"("com.google.android.play:app-update:2.1.0")
+}
+
+/** Bundles the repository's CHANGELOG.md as an asset, for "What's new" in Settings › About. */
+abstract class ChangelogAsset : DefaultTask() {
+    @get:InputFile abstract val source: RegularFileProperty
+    @get:OutputDirectory abstract val out: DirectoryProperty
+
+    @TaskAction fun copy() {
+        source.get().asFile.copyTo(out.get().file("CHANGELOG.md").asFile, overwrite = true)
+    }
+}
+
+androidComponents {
+    onVariants { v ->
+        val task = tasks.register<ChangelogAsset>("changelogAsset${v.name.replaceFirstChar { it.uppercase() }}") {
+            source.set(rootProject.layout.projectDirectory.file("CHANGELOG.md"))
+        }
+        v.sources.assets?.addGeneratedSourceDirectory(task, ChangelogAsset::out)
+    }
 }

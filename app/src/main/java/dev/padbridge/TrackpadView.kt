@@ -17,6 +17,31 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+/** When the on-screen keyboard last typed a key, for "ignore the trackpad while typing" (as on laptops). */
+object Typing {
+    @Volatile var lastKey = 0L
+    @Volatile private var prevKey = 0L
+
+    fun keyPressed() { prevKey = lastKey; lastKey = SystemClock.uptimeMillis() }
+
+    /** A key was typed recently: a short window after one key, longer in the middle of typing. */
+    fun recent(now: Long = SystemClock.uptimeMillis()): Boolean {
+        val window = if (lastKey - prevKey < 1000) 700L else 350L
+        return now - lastKey < window
+    }
+
+    /** Hidden MotionEvent.TOOL_TYPE_PALM, reported by some touch controllers. */
+    private const val TOOL_TYPE_PALM = 5
+
+    /** A contact far bigger than a fingertip: the heel of a hand or a palm. */
+    @android.annotation.SuppressLint("WrongConstant")
+    fun isPalm(e: MotionEvent, i: Int, dpi: Float): Boolean {
+        if (e.getToolType(i) == TOOL_TYPE_PALM) return true
+        val major = e.getTouchMajor(i)
+        return major > 0f && dpi > 0f && major / dpi * 25.4f > 22f
+    }
+}
+
 /**
  * Multi-touch trackpad. Gestures are recognised here and sent as mouse reports or as the
  * keyboard shortcut each OS binds to the equivalent native gesture, so they work on hosts
@@ -101,6 +126,8 @@ class TrackpadView(ctx: Context) : View(ctx) {
 
     private val longPress = Runnable {
         if (mode != Mode.NONE || moved || dragging || last.size != 1) return@Runnable
+        // A hand resting while typing isn't a press and hold.
+        if (Settings.palmRejection && Typing.lastKey > downTime) return@Runnable
         if (Settings.gesture(GestureSlot.LONG_PRESS) == GAction.HOLD_DRAG) {
             // Samsung DeX style: touch and hold, then move to drag or select text.
             dragging = true
@@ -227,7 +254,21 @@ class TrackpadView(ctx: Context) : View(ctx) {
             // Palm rejection: a hand resting on the screen while the pen is near does nothing.
             if (penNear() && e.actionMasked == MotionEvent.ACTION_DOWN) return false
         }
-        if (HidManager.ptpActive) { handlePtp(e); invalidate(); return true }
+        if (Settings.palmRejection) {
+            val f = rejectPalms(e)
+            if (f !== e) {
+                if (f != null) { handle(f); f.recycle() }
+                invalidate()
+                return true
+            }
+        } else if (rejected.isNotEmpty() || passed.isNotEmpty()) { rejected.clear(); passed.clear(); passedStart.clear() }
+        handle(e)
+        invalidate()
+        return true
+    }
+
+    private fun handle(e: MotionEvent) {
+        if (HidManager.ptpActive) { handlePtp(e); return }
         velocity?.addMovement(e)
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> onFirstDown(e)
@@ -240,10 +281,106 @@ class TrackpadView(ctx: Context) : View(ctx) {
                 if (remaining.size == 2) resetTwoFinger(e, remaining[0], remaining[1])
             }
             MotionEvent.ACTION_UP -> onLastUp(e)
-            MotionEvent.ACTION_CANCEL -> cancel()
+            MotionEvent.ACTION_CANCEL -> {
+                cancel()
+                velocity?.recycle(); velocity = null
+            }
         }
-        invalidate()
-        return true
+    }
+
+    // ------------------------------------------------------------------ palm rejection
+
+    /** Pointers ignored until they lift: they landed while typing, or are palm-sized. */
+    private val rejected = HashSet<Int>()
+    /** Pointers the gesture code sees. */
+    private val passed = LinkedHashSet<Int>()
+    /** When the first of [passed] went down. */
+    private var passedSince = 0L
+    /** Where each of [passed] went down, and whether any of them has since moved (so it's a real gesture). */
+    private val passedStart = HashMap<Int, PointF>()
+    private var passedMoved = false
+    private val ydpi = resources.displayMetrics.ydpi
+
+    /**
+     * Laptop-style palm rejection, applied before any gesture code. Returns [e] untouched when nothing is rejected,
+     * null when the event only concerns rejected pointers, or a new event without them (the caller recycles it).
+     *
+     * - A touch that lands within a moment of a key being typed is ignored until it lifts (the hand brushing the
+     *   pad while typing), as is a contact the size of a palm.
+     * - A touch that rests without moving while keys are typed was a palm: its gesture is cancelled instead of
+     *   ending in a tap or a long press.
+     * - Android's own palm rejection (FLAG_CANCELED) cancels the gesture too.
+     */
+    private fun rejectPalms(e: MotionEvent): MotionEvent? {
+        val action = e.actionMasked
+        val idx = e.actionIndex
+        val pid = e.getPointerId(idx)
+        when (action) {
+            MotionEvent.ACTION_DOWN -> { rejected.clear(); passed.clear(); passedStart.clear(); passedMoved = false }
+            MotionEvent.ACTION_CANCEL -> {
+                rejected.clear(); passedStart.clear()
+                val had = passed.isNotEmpty(); passed.clear()
+                return if (had) e else null
+            }
+        }
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+            if (Typing.recent(e.eventTime) || Typing.isPalm(e, idx, ydpi)) { rejected += pid; return null }
+            if (passed.isEmpty()) { passedSince = e.eventTime; passedMoved = false }
+            passed += pid
+            passedStart[pid] = PointF(e.getX(idx), e.getY(idx))
+            return if (rejected.isEmpty() && passed.size == e.pointerCount) e else rebuild(e, action, pid)
+        }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
+            if (rejected.remove(pid)) return null
+            val systemPalm = android.os.Build.VERSION.SDK_INT >= 33 && e.flags and MotionEvent.FLAG_CANCELED != 0
+            // Resting while keys were typed: a palm, not a tap.
+            val palmRest = !passedMoved && !dragging && Typing.lastKey > passedSince
+            if (systemPalm || palmRest) return cancelPassed(e)
+            val simple = rejected.isEmpty() && passed.size == e.pointerCount
+            val out = if (simple) e else rebuild(e, if (passed.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP, pid)
+            passed.remove(pid); passedStart.remove(pid)
+            return out
+        }
+        // MOVE: a contact that spreads into a palm, or rests still while typing, ends the gesture.
+        if (passed.isEmpty()) return null
+        for (i in 0 until e.pointerCount) {
+            val id = e.getPointerId(i)
+            if (id !in passed) continue
+            if (Typing.isPalm(e, i, ydpi)) return cancelPassed(e)
+            val s = passedStart[id]
+            if (s != null && hypot(e.getX(i) - s.x, e.getY(i) - s.y) > tapSlop) passedMoved = true
+        }
+        if (!passedMoved && !dragging && Typing.lastKey > passedSince) return cancelPassed(e)
+        return if (rejected.isEmpty()) e else rebuild(e, MotionEvent.ACTION_MOVE, -1)
+    }
+
+    /** Cancel the gesture and ignore every pointer still down until it lifts. */
+    private fun cancelPassed(e: MotionEvent): MotionEvent? {
+        if (passed.isEmpty()) return null
+        val out = rebuild(e, MotionEvent.ACTION_CANCEL, -1)
+        for (i in 0 until e.pointerCount) rejected += e.getPointerId(i)
+        val action = e.actionMasked
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) rejected -= e.getPointerId(e.actionIndex)
+        passed.clear(); passedStart.clear()
+        return out
+    }
+
+    /** A copy of [e] with only the [passed] pointers, [action] applying to pointer [pid]. */
+    private fun rebuild(e: MotionEvent, action: Int, pid: Int): MotionEvent {
+        val keep = (0 until e.pointerCount).filter { e.getPointerId(it) in passed }
+        val props = Array(keep.size) { MotionEvent.PointerProperties().also { p -> e.getPointerProperties(keep[it], p) } }
+        val coords = Array(keep.size) { MotionEvent.PointerCoords().also { c -> e.getPointerCoords(keep[it], c) } }
+        val at = keep.indexOfFirst { e.getPointerId(it) == pid }
+        val full = when (action) {
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP ->
+                if (keep.size == 1) (if (action == MotionEvent.ACTION_POINTER_DOWN) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_UP)
+                else action or (at.coerceAtLeast(0) shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            else -> action
+        }
+        return MotionEvent.obtain(
+            e.downTime, e.eventTime, full, keep.size, props, coords, e.metaState, e.buttonState,
+            e.xPrecision, e.yPrecision, e.deviceId, e.edgeFlags, e.source, e.flags,
+        )
     }
 
     private fun cancel() {
