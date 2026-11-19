@@ -7,6 +7,15 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [Unreleased]
+
+### Added
+- Keyboard layout sheet: a **Windows / macOS / Linux** switch at the top, so you can change the keys, labels and
+  shortcuts without leaving the keyboard (it sets the computer type app-wide).
+- Laptop deck: **resize the keyboard on screen**. Grips under the keyboard's bottom corners change its width (it
+  stays centered), the middle of the bar changes its height; double-tap the bar to reset both. The sheet adds a
+  **Keyboard height** slider next to the width slider (width now goes down to 40%).
+
 ## [1.3.0] – 2026-11-19
 
 ### Added

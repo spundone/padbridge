@@ -102,12 +102,15 @@ enum class Dest(val label: String, val icon: ImageVector, val selectedIcon: Imag
     GAMEPAD("Gamepad", Icons.Outlined.SportsEsports, Icons.Rounded.SportsEsports),
 }
 
+/** Bumped when the computer type changes, from anywhere (Settings, Connect, the keyboard's layout sheet). */
+object OsBus { var version by androidx.compose.runtime.mutableIntStateOf(0) }
+
 @Composable
 fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     var dest by rememberSaveable { mutableStateOf(if (Settings.lastHost != null) Dest.TRACKPAD else Dest.CONNECT) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     // Bumped when the computer type changes so OS-specific screens rebuild.
-    var osVersion by remember { mutableIntStateOf(0) }
+    var osVersion by OsBus::version
 
     var fullscreen by rememberSaveable { mutableStateOf(Settings.fullscreenInput) }
     val toggleFullscreen = { fullscreen = !fullscreen; Settings.fullscreenInput = fullscreen }

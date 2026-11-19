@@ -66,6 +66,7 @@ import androidx.compose.material.icons.rounded.KeyboardAlt
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.VerticalSplit
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -568,7 +569,7 @@ private fun LaptopDeck(hid: HidUi, modifier: Modifier, cfg: Int, keys: @Composab
     var keysFrac by remember(landscape, cfg) { mutableStateOf(Settings.deckKeys(landscape)) }
     var padW by remember(landscape, cfg) { mutableStateOf(Settings.deckPadWidth(landscape)) }
     var padX by remember(landscape, cfg) { mutableStateOf(Settings.deckPadPos(landscape)) }
-    val kbW = remember(landscape, cfg) { Settings.deckKbWidth(landscape) }
+    var kbW by remember(landscape, cfg) { mutableStateOf(Settings.deckKbWidth(landscape)) }
     val full = remember(landscape, cfg) { Settings.deckPadFull(landscape) }
     val locked = remember(cfg) { Settings.deckLocked }
     val grip = MaterialTheme.colorScheme.outlineVariant
@@ -606,30 +607,72 @@ private fun LaptopDeck(hid: HidUi, modifier: Modifier, cfg: Int, keys: @Composab
             Box(Modifier.offset(x = frameX.dp).width(frameW.dp).height(keysH.dp), contentAlignment = Alignment.Center) {
                 keys(Modifier.width(deckW.dp).fillMaxHeight())
             }
-            // Keyboard height bar.
+            // Bar under the keys: drag up/down in the middle to resize the keys' height, drag the end grips
+            // (under the keyboard's corners) sideways to make it wider or narrower. Double-tap resets both.
+            val geo by androidx.compose.runtime.rememberUpdatedState(
+                floatArrayOf(avail, autoKeys, minKeys, maxKeys, deckW, frameX, frameW, totalW)
+            )
+            val kx0 = frameX + (frameW - deckW) / 2f
             Box(
                 Modifier.fillMaxWidth().height(handleH.dp).then(
                     if (locked) Modifier else Modifier
-                        .pointerInput(landscape, avail) {
-                            detectVerticalDragGestures(
-                                onDragStart = { active = "keys" },
-                                onDragEnd = { active = ""; Settings.setDeckKeys(landscape, keysFrac) },
-                            ) { change, dy ->
+                        .pointerInput(landscape) {
+                            detectDragGestures(
+                                onDragStart = { o ->
+                                    val g = geo
+                                    val x = o.x / density
+                                    val l = g[5] + (g[6] - g[4]) / 2f; val r = l + g[4]
+                                    active = when {
+                                        kotlin.math.abs(x - l) < 56f -> "kbLeft"
+                                        kotlin.math.abs(x - r) < 56f -> "kbRight"
+                                        else -> "keys"
+                                    }
+                                },
+                                onDragEnd = {
+                                    active = ""
+                                    Settings.setDeckKeys(landscape, keysFrac); Settings.setDeckKbWidth(landscape, kbW)
+                                },
+                                onDragCancel = { active = "" },
+                            ) { change, drag ->
                                 change.consume()
-                                val cur = if (keysFrac > 0f) avail * keysFrac else autoKeys
-                                keysFrac = ((cur + dy / density).coerceIn(minKeys, maxKeys)) / avail
+                                val g = geo
+                                when (active) {
+                                    "keys" -> {
+                                        val cur = if (keysFrac > 0f) g[0] * keysFrac else g[1]
+                                        keysFrac = ((cur + drag.y / density).coerceIn(g[2], g[3])) / g[0]
+                                    }
+                                    // Symmetric: the keyboard stays centered, both edges follow the finger.
+                                    "kbLeft", "kbRight" -> {
+                                        val dx = drag.x / density * (if (active == "kbLeft") -2f else 2f)
+                                        val nw = (g[4] + dx).coerceIn(g[7] * 0.4f, g[6])
+                                        kbW = nw / g[7]
+                                    }
+                                }
                             }
                         }
                         .pointerInput(landscape) {
-                            detectTapGestures(onDoubleTap = { keysFrac = 0f; Settings.setDeckKeys(landscape, 0f) })
+                            detectTapGestures(onDoubleTap = {
+                                keysFrac = 0f; kbW = 0f
+                                Settings.setDeckKeys(landscape, 0f); Settings.setDeckKbWidth(landscape, 0f)
+                            })
                         }
                 ),
-                contentAlignment = Alignment.Center,
             ) {
-                if (!locked) Box(
-                    Modifier.offset(x = (frameX + frameW / 2f - totalW / 2f).dp).size(width = 48.dp, height = 4.dp)
-                        .background(if (active == "keys") gripActive else grip, androidx.compose.foundation.shape.CircleShape)
-                )
+                if (!locked) {
+                    Box(
+                        Modifier.align(Alignment.Center).offset(x = (frameX + frameW / 2f - totalW / 2f).dp).size(width = 48.dp, height = 4.dp)
+                            .background(if (active == "keys") gripActive else grip, androidx.compose.foundation.shape.CircleShape)
+                    )
+                    // Width grips under the keyboard's bottom corners.
+                    Box(
+                        Modifier.align(Alignment.CenterStart).offset(x = (kx0 + 6f).dp).size(width = 16.dp, height = 4.dp)
+                            .background(if (active == "kbLeft") gripActive else grip, androidx.compose.foundation.shape.CircleShape)
+                    )
+                    Box(
+                        Modifier.align(Alignment.CenterStart).offset(x = (kx0 + deckW - 22f).dp).size(width = 16.dp, height = 4.dp)
+                            .background(if (active == "kbRight") gripActive else grip, androidx.compose.foundation.shape.CircleShape)
+                    )
+                }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 FreeSpacePad(
@@ -733,6 +776,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     val tabletLand = isTablet() && landscape
     var laptop by remember { mutableStateOf(Settings.kbLaptop(landscape, tabletLand)) }
     var deckKbW by remember { mutableStateOf(Settings.deckKbWidth(landscape)) }
+    var deckKeys by remember { mutableStateOf(Settings.deckKeys(landscape)) }
     var padFull by remember { mutableStateOf(Settings.deckPadFull(landscape)) }
     var deckLocked by remember { mutableStateOf(Settings.deckLocked) }
     var stylus by remember { mutableStateOf(Settings.stylus) }
@@ -760,6 +804,13 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                 Text("Layout and size are remembered separately for each orientation.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 12.dp))
+            }
+            item {
+                // Keys, labels and the shortcut row follow the computer type; switching here changes it app-wide.
+                Text("Keyboard for", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 6.dp))
+                OsSelector(OsBus.version) { OsBus.version++; onChanged() }
+                Spacer(Modifier.height(16.dp))
             }
             item {
                 SheetSwitch("Laptop deck: keyboard with a trackpad below", laptop, 0, 1) {
@@ -795,12 +846,21 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     androidx.compose.material3.Slider(
-                        value = if (deckKbW <= 0f) 1f else deckKbW, valueRange = 0.5f..1f, steps = 9,
+                        value = if (deckKbW <= 0f) 1f else deckKbW, valueRange = 0.4f..1f, steps = 11,
                         onValueChange = { deckKbW = it; Settings.setDeckKbWidth(landscape, it); onChanged() },
                     )
                     Text(
-                        "Drag the bar under the keys to change their height. Under the trackpad, drag the middle grip to " +
-                            "move it and the end grips to resize it. Double-tap a grip to reset it.",
+                        "Keyboard height · " + if (deckKeys <= 0f) "auto" else "${(deckKeys * 100).toInt()}% of the space",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    androidx.compose.material3.Slider(
+                        value = if (deckKeys <= 0f) 0.62f else deckKeys, valueRange = 0.3f..0.85f, steps = 10,
+                        onValueChange = { deckKeys = it; Settings.setDeckKeys(landscape, it); onChanged() },
+                    )
+                    Text(
+                        "Or on screen: drag the middle of the bar under the keys to change their height, and the small " +
+                            "grips under the keyboard's corners to change its width. Under the trackpad, the middle grip " +
+                            "moves it and the end grips resize it. Double-tap a grip to reset.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
@@ -814,7 +874,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                         stylus = it; Settings.stylus = it; onChanged()
                     }
                     androidx.compose.material3.TextButton(onClick = {
-                        Settings.resetDeck(landscape); deckKbW = 0f; padFull = false; onChanged()
+                        Settings.resetDeck(landscape); deckKbW = 0f; deckKeys = 0f; padFull = false; onChanged()
                     }) { Text("Reset deck") }
                 }
             }
