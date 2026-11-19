@@ -14,7 +14,8 @@ sealed interface UpdateState {
     data class Downloading(val version: String, val progress: Float) : UpdateState
     /** Downloaded; the system installer (GitHub) or a restart (Play) finishes it. */
     data class Ready(val version: String) : UpdateState
-    data class Failed(val message: String) : UpdateState
+    /** [openAppInfo]: the fix is a switch on PadBridge's App info page (e.g. network access turned off). */
+    data class Failed(val message: String, val openAppInfo: Boolean = false) : UpdateState
 }
 
 object Updates {

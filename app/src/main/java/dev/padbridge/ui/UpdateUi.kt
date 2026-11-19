@@ -124,8 +124,18 @@ fun updateSubtitle(s: UpdateState): String = when (s) {
     is UpdateState.Failed -> s.message
 }
 
-fun onUpdateRowClick(activity: Activity) = when (Updates.state) {
-    is UpdateState.Available, is UpdateState.Ready -> Updater.start(activity)
-    is UpdateState.Checking, is UpdateState.Downloading -> Unit
-    else -> Updater.check(activity, manual = true)
+fun onUpdateRowClick(activity: Activity) {
+    val s = Updates.state
+    when {
+        s is UpdateState.Failed && s.openAppInfo -> try {
+            activity.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.parse("package:${activity.packageName}"))
+            )
+            Updates.state = UpdateState.Idle
+        } catch (_: Exception) {}
+        s is UpdateState.Available || s is UpdateState.Ready -> Updater.start(activity)
+        s is UpdateState.Checking || s is UpdateState.Downloading -> Unit
+        else -> Updater.check(activity, manual = true)
+    }
 }

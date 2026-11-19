@@ -56,6 +56,7 @@ object Updater {
         val ctx = activity.applicationContext
         if (!enabled(ctx)) { if (manual) post(UpdateState.Failed("Development builds don't update themselves.")); return }
         if (busy) return
+        networkProblem(ctx)?.let { if (manual) post(it); return }
         busy = true
         if (manual) post(UpdateState.Checking)
         Thread {
@@ -81,8 +82,9 @@ object Updater {
                     else post(UpdateState.Available(version, notes))
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "update check", e)
-                post(if (manual) UpdateState.Failed("Couldn't reach GitHub. Check your connection and try again.") else UpdateState.Idle)
+                // Log.w hides UnknownHostException traces, so log the exception itself too.
+                Log.w(TAG, "update check failed: $e", e)
+                post(if (manual) UpdateState.Failed(reason(e)) else UpdateState.Idle)
             } finally { busy = false }
         }.start()
     }
@@ -104,10 +106,46 @@ object Updater {
                 post(UpdateState.Ready(version))
                 install(ctx, apk)
             } catch (e: Exception) {
-                Log.w(TAG, "update download", e)
-                post(UpdateState.Failed(e.message ?: "The update couldn't be downloaded."))
+                Log.w(TAG, "update download failed: $e", e)
+                post(UpdateState.Failed(
+                    if (e is SecurityException || e is IllegalStateException) e.message ?: "The update couldn't be downloaded."
+                    else reason(e)
+                ))
             } finally { busy = false }
         }.start()
+    }
+
+    /**
+     * Android reports no default network to an app whose network access is turned off (App info › data usage ›
+     * "Allow network access", or restricted networking mode). Some ROMs leave that off for apps installed without
+     * the INTERNET permission, even after an update adds it, which is what updating from 1.1.0 runs into.
+     */
+    /** Why PadBridge has no network: null when it has one, else the state to show. */
+    private fun networkProblem(ctx: Context): UpdateState.Failed? {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java) ?: return null
+        return try {
+            if (cm.activeNetwork != null) return null
+            @Suppress("DEPRECATION")
+            val phoneOnline = cm.allNetworks.any {
+                cm.getNetworkCapabilities(it)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+            }
+            if (phoneOnline) UpdateState.Failed(
+                "Network access is turned off for PadBridge. Tap to open App info, then under mobile data / network " +
+                    "turn on Allow network access and Wi-Fi.",
+                openAppInfo = true,
+            ) else UpdateState.Failed("You're offline. Connect to the internet and try again.")
+        } catch (_: Exception) { null }
+    }
+
+    private fun reason(e: Exception): String = when (e) {
+        is java.net.UnknownHostException ->
+            "Couldn't look up GitHub. If you're online, the phone may be blocking PadBridge's network access " +
+                "(App info › PadBridge › data usage / network)."
+        is java.net.SocketTimeoutException -> "GitHub didn't answer in time. Try again."
+        is javax.net.ssl.SSLException -> "Couldn't make a secure connection to GitHub (${e.javaClass.simpleName})."
+        is IllegalStateException -> "GitHub answered with an error (${e.message}). Try again later."
+        is org.json.JSONException -> "GitHub's answer couldn't be read. Try again later."
+        else -> "Couldn't reach GitHub: ${e.javaClass.simpleName}${e.message?.let { " ($it)" } ?: ""}"
     }
 
     fun skip(version: String) {

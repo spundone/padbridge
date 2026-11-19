@@ -7,6 +7,14 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [1.2.1] – 2026-11-19
+
+### Fixed
+- GitHub build: **Check for updates** said "Couldn't reach GitHub" when the phone had turned network access off
+  for PadBridge. Some ROMs do this for apps installed without the internet permission (1.1.0 and older) and keep
+  it off after the update. PadBridge now detects it and the row opens App info, where **Allow network access**
+  turns it back on. Other failures name the actual cause (offline, timeout, GitHub error).
+
 ## [1.2.0] – 2026-11-19
 
 ### Added

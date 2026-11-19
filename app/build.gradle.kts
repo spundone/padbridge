@@ -23,8 +23,8 @@ android {
         applicationId = "dev.padbridge"
         minSdk = 28
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.2.0"
+        versionCode = 24
+        versionName = "1.2.1"
     }
 
     // github: everything, including experimental root mode. play: Play Store build without root features.
