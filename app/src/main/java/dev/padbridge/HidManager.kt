@@ -917,8 +917,11 @@ object HidManager {
     }
 
     /** Full keyboard state from the on-screen keyboard (held modifiers + held keys). */
-    fun setKeyboardState(mods: Int, keys: Collection<Int>) = io.post {
-        kbMods = mods; kbKeys.clear(); kbKeys.addAll(keys); sendKeyboard()
+    fun setKeyboardState(mods: Int, keys: Collection<Int>) {
+        // Copy now: callers pass live collections, and by the time the io thread runs (later on a slow link,
+        // like a TV's) a quick tap would already have been released, so the key would never be sent.
+        val snap = keys.toList()
+        io.post { kbMods = mods; kbKeys.clear(); kbKeys.addAll(snap); sendKeyboard() }
     }
 
     /** Press and release a combo. Modifiers go down first so macOS reliably sees the chord. */

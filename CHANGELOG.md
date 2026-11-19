@@ -9,6 +9,31 @@ undated.
 
 ## [Unreleased]
 
+## [1.3.4] – 2026-11-19
+
+### Added
+- **Custom colors** (Settings › Appearance › Colors): pick one color from swatches or hue, saturation and
+  brightness sliders, and the whole light and dark palette grows from it, like wallpaper colors.
+- **Two-tone**: the whole app in just two colors you pick, one for backgrounds and one for text, keys and accents,
+  with a contrast check, a swap button and presets.
+- **Mixed** theme: a light app with the keyboard, trackpad and gamepad in dark, like a laptop's dark keys.
+- **Blur and transparency**: see-through sheets, dialogs and menus, with the app blurred behind them on Android 12+.
+- **Indirect typing** for the phone keyboard: write with everything Gboard (or your keyboard) can do, including
+  suggestions, glide typing and voice typing, edit it, then Enter types it all on the computer and presses Enter.
+  Direct (no suggestions) and Direct with suggestions are still there, in the keyboard sheet.
+- The phone keyboard can now learn from what you type (off by default, which keeps Gboard in incognito).
+- **Google TV-style remote** for Android TV: power, a D-pad or a swipe pad (swipe to move, tap to select, hold to
+  long-press), Back, Home and Assistant, mute, volume and play / pause.
+- TrackPoint on the Laptop and Full keyboard layouts too (tap it to click, hold Fn and push to scroll); it can be
+  turned off in the keyboard sheet.
+
+### Changed
+- Pure black (on by default in dark mode) keeps the theme's color in cards, keys and pads instead of flat greys.
+
+### Fixed
+- On-screen keyboard keys could get lost on a slow Bluetooth link, such as a TV's: a quick tap was already released
+  by the time its key report was built, so nothing was sent.
+
 ## [1.3.3] – 2026-11-19
 
 ### Added

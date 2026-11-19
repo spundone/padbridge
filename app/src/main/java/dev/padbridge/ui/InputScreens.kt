@@ -1,6 +1,10 @@
 package dev.padbridge.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.rounded.Gamepad
+import androidx.compose.material.icons.rounded.Swipe
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
@@ -338,7 +342,8 @@ private fun GestureGuide(os: HostOs, onDismiss: () -> Unit) {
         "Pinch" to "Zoom",
         "Right / bottom edge slide" to if (Settings.edgeScroll) "Scroll" else "Off",
     )
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, containerColor = glassSheetColor(), scrimColor = glassScrim()) {
+        GlassBehind()
         androidx.compose.foundation.lazy.LazyColumn(
             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -456,6 +461,7 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     val preview = remember(cfg) { Settings.kbPreview }
     val flick = remember(cfg) { Settings.kbFlick }
     val spaceCursor = remember(cfg) { Settings.kbSpaceCursor }
+    val trackPoint = remember(cfg) { Settings.kbTrackPoint }
 
     val freePad = remember(cfg) { resizable && Settings.kbFreePad }
     val laptop = rememberLaptopDeck(cfg)
@@ -469,6 +475,7 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
             v.keyPreview = preview
             v.flick = flick
             v.spaceCursor = spaceCursor
+            v.trackPoint = trackPoint
             v.configure(os, layout, gap)
             v.invalidate()
         },
@@ -778,7 +785,9 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var preview by remember { mutableStateOf(Settings.kbPreview) }
     var flick by remember { mutableStateOf(Settings.kbFlick) }
     var spaceCursor by remember { mutableStateOf(Settings.kbSpaceCursor) }
-    var predictive by remember { mutableStateOf(Settings.predictiveTyping) }
+    var typing by remember { mutableStateOf(Settings.typingMode) }
+    var learning by remember { mutableStateOf(Settings.imeLearning) }
+    var trackPoint by remember { mutableStateOf(Settings.kbTrackPoint) }
     var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
     val tabletLand = isTablet() && landscape
     var laptop by remember { mutableStateOf(Settings.kbLaptop(landscape, tabletLand)) }
@@ -803,7 +812,9 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = glassSheetColor(), scrimColor = glassScrim(),
     ) {
+        GlassBehind()
         androidx.compose.foundation.lazy.LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(androidx.compose.material3.ListItemDefaults.SegmentedGap),
@@ -942,27 +953,64 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
             item { Text("Options", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) }
             item {
-                SheetSwitch("Trackpad in free space", freePadOn, 0, 6) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
+                SheetSwitch("Trackpad in free space", freePadOn, 0, 8) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
             }
             item {
-                SheetSwitch("Shortcut and media rows", rows, 1, 6) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
+                SheetSwitch("Shortcut and media rows", rows, 1, 8) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
             }
             item {
-                SheetSwitch("Key preview bubbles", preview, 2, 6) { preview = it; Settings.kbPreview = it; onChanged() }
+                SheetSwitch("Key preview bubbles", preview, 2, 8) { preview = it; Settings.kbPreview = it; onChanged() }
             }
             item {
-                SheetSwitch("Flick up on a key for its shifted character (! for 1, A for a)", flick, 3, 6) {
+                SheetSwitch("Flick up on a key for its shifted character (! for 1, A for a)", flick, 3, 8) {
                     flick = it; Settings.kbFlick = it; onChanged()
                 }
             }
             item {
-                SheetSwitch("Drag the space bar to move the cursor", spaceCursor, 4, 6) {
+                SheetSwitch("Drag the space bar to move the cursor", spaceCursor, 4, 8) {
                     spaceCursor = it; Settings.kbSpaceCursor = it; onChanged()
                 }
             }
             item {
-                SheetSwitch("Phone keyboard: predictive (glide, autocorrect)", predictive, 5, 6) {
-                    predictive = it; Settings.predictiveTyping = it; onChanged()
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = {},
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(5, 8),
+                    colors = segColors(),
+                    supportingContent = {
+                        Column {
+                            Text(when (typing) {
+                                0 -> "Direct: every key goes to the computer as you type. No suggestions."
+                                1 -> "Direct with suggestions: glide and autocorrect; corrections are fixed with backspaces."
+                                else -> "Indirect: write with suggestions, glide and voice typing, edit it, then Enter types it " +
+                                    "all and presses Enter on the computer."
+                            })
+                            Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                listOf("Direct", "Suggest", "Indirect").forEachIndexed { i, label ->
+                                    ToggleButton(
+                                        checked = typing == i,
+                                        onCheckedChange = { typing = i; Settings.typingMode = i; onChanged() },
+                                        modifier = Modifier.weight(1f),
+                                        shapes = when (i) {
+                                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                            2 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                        },
+                                    ) { Text(label) }
+                                }
+                            }
+                        }
+                    },
+                ) { Text("Phone keyboard typing") }
+            }
+            item {
+                SheetSwitch("Phone keyboard learns from what you type (off: incognito)", learning, 6, 8) {
+                    learning = it; Settings.imeLearning = it; onChanged()
+                }
+            }
+            item {
+                SheetSwitch("TrackPoint on Laptop and Full layouts (tap to click, hold Fn to scroll)", trackPoint, 7, 8) {
+                    trackPoint = it; Settings.kbTrackPoint = it; onChanged()
                 }
             }
         }
@@ -1087,6 +1135,7 @@ fun GamepadScreen(onExit: () -> Unit) {
                 }
                 androidx.compose.material3.DropdownMenu(
                     expanded = presetMenu, onDismissRequest = { presetMenu = false }, shape = RoundedCornerShape(16.dp),
+                    containerColor = glassMenuColor(),
                 ) {
                     dev.padbridge.GamePreset.entries.forEach { p ->
                         androidx.compose.material3.DropdownMenuItem(
@@ -1331,6 +1380,9 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
             AndroidView({ ime }, Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp))
         }
 
+        if (profile == dev.padbridge.RemoteProfile.ANDROID_TV) {
+            GoogleTvRemote(aod, landscapeTop, back, home, Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp))
+        } else {
         // Siri Remote-style: a large clickpad, then a quiet two-column grid of identical round keys
         // (Back | Home, Play | volume rocker, Mute). No panel, no colored keys: the controls float on the page.
         // Landscape puts the keys beside the clickpad instead of under it.
@@ -1403,6 +1455,8 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
                 Spacer(Modifier.height(20.dp))
                 keys()
             }
+        }
+
         }
 
         // Profile extras. Previous / next live here (slides already step with the clickpad's left / right).
@@ -1483,6 +1537,86 @@ private fun RemoteKey(
     }
 }
 
+/**
+ * Google TV app-style remote for Android TV: power and a D-pad / swipe switch on top, the D-pad (or a swipe pad)
+ * in the middle, then Back, Home and Assistant, and volume, mute and play / pause.
+ */
+@Composable
+private fun GoogleTvRemote(
+    aod: Boolean, landscape: Boolean, back: dev.padbridge.RemoteButton, home: dev.padbridge.RemoteButton, modifier: Modifier,
+) {
+    var swipe by remember { mutableStateOf(Settings.remoteSwipe) }
+    val power = remember { dev.padbridge.RemoteButton("Power", dev.padbridge.RemoteOut.Consumer(Keys.C_POWER)) }
+    val assistant = remember {
+        dev.padbridge.RemoteButton("Assistant", dev.padbridge.RemoteOut.Consumer(dev.padbridge.RemoteProfile.AC_SEARCH))
+    }
+    val mute = remember { dev.padbridge.RemoteButton("Mute", dev.padbridge.RemoteOut.Consumer(Keys.C_MUTE)) }
+    val play = remember { dev.padbridge.RemoteButton("Play / pause", dev.padbridge.RemoteOut.Consumer(Keys.C_PLAY_PAUSE)) }
+    val key = if (landscape) 52.dp else 60.dp
+    val gap = if (landscape) 12.dp else 18.dp
+
+    val modeSwitch: @Composable () -> Unit = {
+        Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
+            listOf("D-pad" to Icons.Rounded.Gamepad, "Swipe" to Icons.Rounded.Swipe).forEachIndexed { i, (label, icon) ->
+                ToggleButton(
+                    checked = swipe == (i == 1),
+                    onCheckedChange = { swipe = i == 1; Settings.remoteSwipe = swipe },
+                    shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                ) {
+                    Icon(icon, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(label)
+                }
+            }
+        }
+    }
+    val pad: @Composable (Modifier) -> Unit = { m ->
+        androidx.compose.foundation.layout.BoxWithConstraints(m, contentAlignment = Alignment.Center) {
+            if (swipe) AndroidView(
+                factory = { dev.padbridge.SwipePadView(it) },
+                update = { v -> aod; v.invalidate() },
+                modifier = Modifier.size(minOf(maxWidth, 460.dp), minOf(maxHeight, 460.dp)),
+            ) else {
+                val side = minOf(maxWidth - 16.dp, maxHeight, 400.dp)
+                AndroidView(factory = { DpadView(it) }, update = { v -> aod; v.invalidate() }, modifier = Modifier.size(side))
+            }
+        }
+    }
+    val buttons: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(gap), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                RemoteKey(back, Icons.AutoMirrored.Rounded.ArrowBack, aod, key)
+                RemoteKey(home, Icons.Rounded.Home, aod, key)
+                RemoteKey(assistant, Icons.Rounded.Mic, aod, key)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
+                RemoteKey(mute, Icons.AutoMirrored.Rounded.VolumeOff, aod, key)
+                VolumeRocker(aod, key * 2 + gap, key, horizontal = true)
+            }
+            RemoteKey(play, Icons.Rounded.PlayArrow, aod, key, secondIcon = Icons.Rounded.Pause)
+        }
+    }
+
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            RemoteKey(power, Icons.Rounded.PowerSettingsNew, aod, 48.dp)
+            Spacer(Modifier.weight(1f))
+            modeSwitch()
+        }
+        if (landscape) {
+            Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                pad(Modifier.weight(1f).fillMaxHeight())
+                Spacer(Modifier.width(24.dp))
+                buttons()
+            }
+        } else {
+            pad(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { buttons() }
+        }
+    }
+}
+
 /** Siri Remote-style volume rocker: one tall pill, + on top and − below. */
 @Composable
 private fun VolumeRocker(
@@ -1526,7 +1660,8 @@ fun OverflowMenu(entries: List<MenuEntry>) {
     var open by remember { mutableStateOf(false) }
     Box {
         androidx.compose.material3.IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, "More options") }
-        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(16.dp)) {
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(16.dp),
+            containerColor = glassMenuColor()) {
             entries.forEach { e ->
                 if (e.divider) androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp))
                 androidx.compose.material3.DropdownMenuItem(

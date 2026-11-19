@@ -54,6 +54,7 @@ object Keys {
     fun f(n: Int) = if (n <= 12) F1 + n - 1 else 0x68 + n - 13
 
     // Consumer page usages
+    const val C_POWER = 0x30
     const val C_PLAY_PAUSE = 0xCD
     const val C_NEXT = 0xB5
     const val C_PREV = 0xB6

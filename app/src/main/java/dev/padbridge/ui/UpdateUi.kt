@@ -108,6 +108,7 @@ fun UpdateBanner() {
     }
     if (notes && s is UpdateState.Available) AlertDialog(
         onDismissRequest = { notes = false },
+        containerColor = glassDialogColor(),
         title = { Text("What's new in ${s.version}") },
         text = {
             Text(

@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.text.InputType
+import android.text.SpannableStringBuilder
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -17,8 +18,10 @@ import android.view.inputmethod.InputMethodManager
  * An invisible-ish "text field" that opens the phone's own keyboard (Gboard, Samsung, SwiftKey…)
  * and forwards everything typed as HID keystrokes instead of keeping it.
  *
- * Live mode disables suggestions so each key goes out immediately. Predictive mode lets the IME
- * compose words (glide typing, autocorrect); corrections are replayed with backspaces.
+ * Direct mode disables suggestions so each key goes out immediately. Direct with suggestions lets the IME
+ * compose words (glide typing, autocorrect); corrections are replayed with backspaces. Indirect mode is a
+ * real text box: write with everything the phone keyboard can do (suggestions, glide, voice typing, emoji
+ * search) and fix it up, then Enter types it all on the computer and presses Enter there.
  */
 class ImeCaptureView(ctx: Context) : View(ctx) {
 
@@ -34,6 +37,11 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
     private val txt = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 15 * density }
     private val caret = Paint().apply { color = C.ACCENT; strokeWidth = 2 * density }
     private val rect = RectF()
+    /** Indirect mode's text, kept on the phone until sent. */
+    private val buffer = SpannableStringBuilder()
+    private val indirect get() = Settings.typingMode == 2
+    /** Gboard and others show incognito and don't learn, unless the user lets them ([Settings.imeLearning]). */
+    private val incognito get() = if (Settings.imeLearning) 0 else EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
 
     init {
         isFocusable = true
@@ -64,16 +72,25 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
     override fun onCheckIsTextEditor() = true
 
     override fun onCreateInputConnection(out: EditorInfo): InputConnection {
-        out.inputType = if (Settings.predictiveTyping) {
+        if (indirect) {
+            out.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            out.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN or
+                EditorInfo.IME_ACTION_SEND or incognito
+            out.initialSelStart = buffer.length
+            out.initialSelEnd = buffer.length
+            out.hintText = "Write, then Enter sends"
+            return Compose()
+        }
+        out.inputType = if (Settings.typingMode == 1) {
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         } else {
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
                 InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         }
-        // NO_PERSONALIZED_LEARNING: text typed to the computer shouldn't train the phone keyboard.
+        // Incognito by default: text typed to the computer shouldn't train the phone keyboard.
         out.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN or
-            EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_ENTER_ACTION or
-            EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+            EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_ENTER_ACTION or incognito
         out.initialSelStart = 0
         out.initialSelEnd = 0
         return Conn()
@@ -104,8 +121,25 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
     }
 
     /** Hardware keyboards attached to the phone also end up here. */
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean =
-        if (handleKey(event)) true else super.onKeyDown(keyCode, event)
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (indirect && indirectKey(event)) return true
+        return if (handleKey(event)) true else super.onKeyDown(keyCode, event)
+    }
+
+    /** A hardware keyboard on the phone writes into indirect mode's text too; Enter sends it. */
+    private fun indirectKey(e: KeyEvent): Boolean {
+        when (e.keyCode) {
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> { sendBuffer(); return true }
+            KeyEvent.KEYCODE_DEL -> {
+                if (buffer.isEmpty()) return false
+                buffer.delete(buffer.length - 1, buffer.length); imm.restartInput(this); invalidate(); return true
+            }
+        }
+        val ch = e.unicodeChar
+        if (ch == 0 || Keys.modsFromAndroidMeta(e.metaState) and (Keys.L_CTRL or Keys.L_ALT or Keys.L_GUI) != 0) return false
+        buffer.append(String(Character.toChars(ch))); imm.restartInput(this); invalidate()
+        return true
+    }
 
     private fun handleKey(e: KeyEvent): Boolean {
         val code = e.keyCode
@@ -129,6 +163,48 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
         val hid = Keys.fromAndroidKeyCode(code) ?: return false
         HidManager.tap(hid, mods)
         return true
+    }
+
+    /** Indirect mode: types the whole text, then Enter. Empty: Enter and Backspace go straight through. */
+    private fun sendBuffer() {
+        val text = buffer.toString()
+        buffer.clear()
+        imm.restartInput(this)
+        typeOut(text)
+        HidManager.tap(Keys.ENTER); echoAppend("\n")
+        invalidate()
+    }
+
+    private inner class Compose : BaseInputConnection(this, true) {
+        override fun getEditable(): android.text.Editable = buffer
+
+        private fun changed(r: Boolean): Boolean {
+            val sel = android.text.Selection.getSelectionEnd(buffer).let { if (it < 0) buffer.length else it }
+            val selStart = android.text.Selection.getSelectionStart(buffer).let { if (it < 0) sel else it }
+            imm.updateSelection(this@ImeCaptureView, selStart, sel, getComposingSpanStart(buffer), getComposingSpanEnd(buffer))
+            invalidate()
+            return r
+        }
+
+        override fun commitText(text: CharSequence, newCursorPosition: Int) = changed(super.commitText(text, newCursorPosition))
+        override fun setComposingText(text: CharSequence, newCursorPosition: Int) =
+            changed(super.setComposingText(text, newCursorPosition))
+        override fun finishComposingText() = changed(super.finishComposingText())
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            if (buffer.isEmpty()) { repeat(beforeLength) { HidManager.tap(Keys.BACKSPACE) }; return true }
+            return changed(super.deleteSurroundingText(beforeLength, afterLength))
+        }
+        override fun setSelection(start: Int, end: Int) = changed(super.setSelection(start, end))
+
+        override fun performEditorAction(actionCode: Int): Boolean { sendBuffer(); return true }
+
+        override fun sendKeyEvent(event: KeyEvent): Boolean {
+            if (event.action == KeyEvent.ACTION_DOWN) when (event.keyCode) {
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> { sendBuffer(); return true }
+                KeyEvent.KEYCODE_DEL -> if (buffer.isEmpty()) { HidManager.tap(Keys.BACKSPACE); return true }
+            }
+            return changed(super.sendKeyEvent(event))
+        }
     }
 
     private inner class Conn : BaseInputConnection(this, false) {
@@ -195,11 +271,14 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
         c.drawRoundRect(rect, r, r, bg)
         val pad = 14 * density
         val baseline = height / 2f + 5 * density
-        val shown = echo.toString().substringAfterLast('\n')
-        if (shown.isEmpty() && !hasFocus()) {
+        val shown = if (indirect) buffer.toString() else echo.toString().substringAfterLast('\n')
+        if (shown.isEmpty() && (!hasFocus() || indirect)) {
             txt.color = C.MUTED
-            c.drawText("Type with phone keyboard", pad, baseline, txt)
-            return
+            c.drawText(
+                if (indirect) (if (hasFocus()) "Write, then Enter sends it" else "Write with phone keyboard, then send")
+                else "Type with phone keyboard", pad, baseline, txt,
+            )
+            if (!hasFocus()) return
         }
         txt.color = C.TEXT
         val maxW = width - 2 * pad - 4 * density

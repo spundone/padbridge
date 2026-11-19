@@ -199,7 +199,8 @@ fun WhatsNewSheet(installed: String, onDismiss: () -> Unit) {
             .map(::parseChangelog).getOrDefault(emptyList())
             .filter { BuildConfig.DEBUG || !it.version.equals("Unreleased", ignoreCase = true) }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = glassSheetColor(), scrimColor = glassScrim()) {
+        GlassBehind()
         LazyColumn(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

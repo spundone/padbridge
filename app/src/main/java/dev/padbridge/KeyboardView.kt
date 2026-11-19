@@ -143,6 +143,14 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
     var flick = true
     /** Drag on the space bar to send arrow keys. */
     var spaceCursor = true
+    /** A TrackPoint between G, H and B on the Laptop and Full layouts too (ThinkPad always has one). */
+    var trackPoint = true
+        set(v) {
+            if (field == v) return
+            field = v
+            val o = os; val l = layout
+            if (o != null && l != null) { releaseEverything(); build(o, l); layoutKeys(); invalidate() }
+        }
 
     fun setOs(o: HostOs) = configure(o, layout ?: KbLayout.LAPTOP, splitGap)
 
@@ -259,6 +267,7 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
                 val arrows = listOf(left(), up(), down(), right())
                 g.row(4f, 0f, if (mac) listOf(fnKey(), ctrl(), alt(), gui(w = 1.5f), space(3.5f), gui(true, 1.5f), alt(true, 1f)) + arrows
                 else listOf(ctrl(), gui(), alt(), space(4.25f), alt(true, 1f), fnKey(), ctrl(true, 1f)) + arrows)
+                if (trackPoint) { nubGx = 6.75f; nubGy = 3f }
             }
             KbLayout.THINKPAD -> {
                 // Low F-row with Home/End/Ins/Del, Fn bottom-left, PrtSc between Alt and Ctrl, half-height arrows
@@ -308,6 +317,7 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
                 val arrows = listOf(left(), up(), down(), right())
                 g.row(5f, 0f, if (mac) listOf(fnKey(), ctrl(), alt(), gui(w = 1.5f), space(3.5f), gui(true, 1.5f), alt(true, 1f)) + arrows
                 else listOf(ctrl(), gui(), alt(), space(4.25f), alt(true, 1f), fnKey(), ctrl(true, 1f)) + arrows)
+                if (trackPoint && l == KbLayout.FULL) { nubGx = 6.75f; nubGy = 4f }
                 if (l == KbLayout.FULL_NUMPAD) {
                     val x = 15.5f
                     g.row(0f, x, listOf(sm("PrtSc", Keys.PRINT_SCREEN), sm("Ins", Keys.INSERT), sm("PgUp", Keys.PAGE_UP), sm("PgDn", Keys.PAGE_DOWN)))
@@ -635,7 +645,10 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         nubMax = max(nubMax, d)
         val push = d - NUB_DEAD_DP
         if (push <= 0f || d == 0f) return
-        if (middleHeld) {
+        // A modifier held while using the stick was used (Fn to scroll, Shift-select): it doesn't turn one-shot.
+        modHeld.filterValues { it }.keys.forEach { modUsed.add(it) }
+        // Scroll with the middle TrackPoint button held, or Fn on layouts without the buttons.
+        if (middleHeld || modHeld.entries.any { it.key.fn && it.value }) {
             middleScrolled = true
             val rate = 0.35f * push.pow(1.3f) // notches per second
             HidManager.scroll(-dy / (d * density) * rate * dt, dx / (d * density) * rate * dt)
@@ -649,7 +662,8 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         nubId = -1
         removeCallbacks(nubLoop)
         // A quick tap on the stick clicks, like ThinkPad's press-to-select.
-        if (t - nubDown < 180 && nubMax < 4f && !middleHeld) HidManager.click(TrackpadView.BTN_LEFT)
+        if (t - nubDown < 180 && nubMax < 4f && !middleHeld && !middleScrolled) HidManager.click(TrackpadView.BTN_LEFT)
+        if (!middleHeld) middleScrolled = false
     }
 
     override fun onDetachedFromWindow() {

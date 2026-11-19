@@ -35,6 +35,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
@@ -410,7 +415,9 @@ fun SettingsScreen(
 @Composable
 private fun ActionPicker(slot: GestureSlot, os: dev.padbridge.HostOs, onDismiss: () -> Unit, onPick: (GAction) -> Unit) {
     val current = remember { Settings.gesture(slot) }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        containerColor = glassSheetColor(), scrimColor = glassScrim()) {
+        GlassBehind()
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text(slot.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text("Default: ${GAction.default(os, slot).label}", style = MaterialTheme.typography.bodyMedium,
@@ -494,57 +501,144 @@ private fun keyName(code: Int): String = when (code) {
 @Composable
 private fun AppearanceSettings() {
     var mode by remember { mutableIntStateOf(Settings.themeMode) }
-    var dynamic by remember { mutableStateOf(Settings.dynamicColor) }
+    var palette by remember { mutableIntStateOf(Settings.palette) }
     var black by remember { mutableStateOf(Settings.pureBlack) }
+    var seed by remember { mutableIntStateOf(Settings.seedColor) }
+    var bg by remember { mutableIntStateOf(Settings.twoToneBg) }
+    var fg by remember { mutableIntStateOf(Settings.twoToneFg) }
+    var editing by remember { mutableIntStateOf(0) } // two-tone: 0 background, 1 foreground
     val canDynamic = android.os.Build.VERSION.SDK_INT >= 31
     fun changed() { ThemeState.version++ }
 
+    @Composable
+    fun Choice(labels: List<String>, selected: Int, enabled: (Int) -> Boolean = { true }, onPick: (Int) -> Unit) =
+        Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            labels.forEachIndexed { i, label ->
+                androidx.compose.material3.ToggleButton(
+                    checked = selected == i,
+                    onCheckedChange = { onPick(i) },
+                    enabled = enabled(i),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                    shapes = when (i) {
+                        0 -> androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        labels.lastIndex -> androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> androidx.compose.material3.ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                ) { Text(label, maxLines = 1) }
+            }
+        }
+
+    val twoTone = palette == 3
+    val items = if (twoTone) 3 else 4
     Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
-        SegmentedListItem(
+        if (!twoTone) SegmentedListItem(
             onClick = {},
-            shapes = ListItemDefaults.segmentedShapes(0, 3),
+            shapes = ListItemDefaults.segmentedShapes(0, items),
             colors = segColors(),
             supportingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    listOf("System", "Light", "Dark").forEachIndexed { i, label ->
-                        androidx.compose.material3.ToggleButton(
-                            checked = mode == i,
-                            onCheckedChange = { mode = i; Settings.themeMode = i; changed() },
-                            modifier = Modifier.weight(1f),
-                            shapes = when (i) {
-                                0 -> androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                2 -> androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> androidx.compose.material3.ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            },
-                        ) { Text(label) }
-                    }
+                Column {
+                    Choice(listOf("System", "Light", "Dark", "Mixed"), mode) { mode = it; Settings.themeMode = it; changed() }
+                    if (mode == 3) Text(
+                        "Light app, with the keyboard, trackpad and gamepad in dark, like a laptop's dark keys.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             },
         ) { Text("Theme") }
         SegmentedListItem(
-            onClick = { if (canDynamic) { dynamic = !dynamic; Settings.dynamicColor = dynamic; changed() } },
-            enabled = canDynamic,
-            shapes = ListItemDefaults.segmentedShapes(1, 3),
+            onClick = {},
+            shapes = ListItemDefaults.segmentedShapes(if (twoTone) 0 else 1, items),
             colors = segColors(),
             supportingContent = {
-                Text(if (canDynamic) "Colors from your wallpaper. Off uses PadBridge's own palette."
-                else "Needs Android 12 or newer; using PadBridge's palette.")
+                Column {
+                    Text(when (palette) {
+                        1 -> "Colors from your wallpaper."
+                        2 -> "Pick one color; the whole palette grows from it, light and dark."
+                        3 -> "Just two colors: one for backgrounds, one for text, keys and accents. Light or dark follows the background."
+                        else -> "PadBridge's own blue palette."
+                    })
+                    Choice(listOf("PadBridge", "Wallpaper", "Custom", "Two-tone"), palette, enabled = { it != 1 || canDynamic }) {
+                        palette = it; Settings.palette = it; Settings.dynamicColor = it == 1; changed()
+                    }
+                }
             },
-            trailingContent = {
-                Switch(checked = dynamic && canDynamic, enabled = canDynamic,
-                    onCheckedChange = { dynamic = it; Settings.dynamicColor = it; changed() })
+        ) { Text("Colors") }
+        if (palette == 2) SegmentedListItem(
+            onClick = {},
+            shapes = ListItemDefaults.segmentedShapes(2, items),
+            colors = segColors(),
+            supportingContent = {
+                ColorPicker(seed, onChange = {}, onDone = { seed = it; Settings.seedColor = it; changed() })
             },
-        ) { Text("Wallpaper colors") }
-        SegmentedListItem(
+        ) { Text("Seed color") }
+        if (twoTone) SegmentedListItem(
+            onClick = {},
+            shapes = ListItemDefaults.segmentedShapes(1, items),
+            colors = segColors(),
+            supportingContent = {
+                Column {
+                    Choice(listOf("Background", "Foreground"), editing) { editing = it }
+                    val ratio = contrast(bg, fg)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                        Text(
+                            "Contrast ${"%.1f".format(ratio)}:1" + if (ratio < 4.5f) " · low, text may be hard to read" else "",
+                            color = if (ratio < 4.5f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = {
+                            val t = bg; bg = fg; fg = t; Settings.twoToneBg = bg; Settings.twoToneFg = fg; changed()
+                        }) { Text("Swap") }
+                    }
+                    if (editing == 0) ColorPicker(bg, onChange = {}, onDone = { bg = it; Settings.twoToneBg = it; changed() })
+                    else ColorPicker(fg, onChange = {}, onDone = { fg = it; Settings.twoToneFg = it; changed() })
+                }
+            },
+        ) { Text("Two-tone colors") }
+        if (!twoTone) SegmentedListItem(
             onClick = { black = !black; Settings.pureBlack = black; changed() },
-            shapes = ListItemDefaults.segmentedShapes(2, 3),
+            shapes = ListItemDefaults.segmentedShapes(items - 1, items),
             colors = segColors(),
             supportingContent = { Text("True black in dark mode, easier on OLED screens and battery") },
             trailingContent = { Switch(checked = black, onCheckedChange = { black = it; Settings.pureBlack = it; changed() }) },
         ) { Text("Pure black") }
+        else SegmentedListItem(
+            onClick = {},
+            shapes = ListItemDefaults.segmentedShapes(2, items),
+            colors = segColors(),
+            supportingContent = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    for ((b, f) in TwoTonePresets) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { bg = b; fg = f; Settings.twoToneBg = b; Settings.twoToneFg = f; changed() },
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                containerColor = androidx.compose.ui.graphics.Color(b),
+                                contentColor = androidx.compose.ui.graphics.Color(f)),
+                        ) { Text("Aa") }
+                    }
+                }
+            },
+        ) { Text("Presets") }
+        var glass by remember { mutableStateOf(Settings.glass) }
+        SegmentedListItem(
+            onClick = { glass = !glass; Settings.glass = glass; changed() },
+            shapes = ListItemDefaults.segmentedShapes(0, 1),
+            colors = segColors(),
+            modifier = Modifier.padding(top = 12.dp),
+            supportingContent = {
+                Text("See-through sheets, dialogs and menus" +
+                    if (android.os.Build.VERSION.SDK_INT >= 31) ", with the app blurred behind them" else "")
+            },
+            trailingContent = { Switch(checked = glass, onCheckedChange = { glass = it; Settings.glass = it; changed() }) },
+        ) { Text("Blur and transparency") }
     }
 }
+
+private val TwoTonePresets = listOf(
+    0xFF0B1F33 to 0xFFFFC857, 0xFF000000 to 0xFFFFFFFF, 0xFF000000 to 0xFF39FF14, 0xFFF4EFE6 to 0xFF1F3A5F,
+    0xFF1B0B2E to 0xFFFF6AD5, 0xFFFFF4E0 to 0xFFC0392B, 0xFF0F2A1D to 0xFFB8F2C9, 0xFF101010 to 0xFFFF7A50,
+).map { (a, b) -> a.toInt() to b.toInt() }
 
 const val REPO_URL = "https://github.com/spundone/padbridge"
 
@@ -578,6 +672,7 @@ private fun AboutSection(activity: MainActivity) {
     if (whatsNew) WhatsNewSheet(activity.versionName().substringBefore("-")) { whatsNew = false }
     if (licenses) androidx.compose.material3.AlertDialog(
         onDismissRequest = { licenses = false },
+        containerColor = glassDialogColor(),
         confirmButton = { androidx.compose.material3.TextButton(onClick = { licenses = false }) { Text("Close") } },
         title = { Text("Open-source licenses") },
         text = {

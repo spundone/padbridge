@@ -72,6 +72,23 @@ object Settings {
         get() = bool("keepScreenOn", true)
         set(v) = putBool("keepScreenOn", v)
 
+    /**
+     * Phone keyboard: 0 direct (each key goes out as typed, no suggestions), 1 direct with suggestions (the
+     * phone keyboard composes words and corrections are replayed with backspaces), 2 indirect (write with
+     * every keyboard feature, voice typing included, then Enter sends it all). Was [predictiveTyping].
+     */
+    var typingMode: Int
+        get() = if (p.contains("typingMode")) p.getInt("typingMode", 0) else if (predictiveTyping) 1 else 0
+        set(v) = p.edit().putInt("typingMode", v).apply()
+
+    /**
+     * Let the phone keyboard learn from what's typed into PadBridge (its suggestions, personal dictionary).
+     * Off asks it for incognito, so text typed to the computer stays out of the phone keyboard's history.
+     */
+    var imeLearning: Boolean
+        get() = bool("imeLearning", false)
+        set(v) = putBool("imeLearning", v)
+
     var predictiveTyping: Boolean
         get() = bool("predictive", false)
         set(v) = putBool("predictive", v)
@@ -177,10 +194,20 @@ object Settings {
         get() = bool("kbFlick", true)
         set(v) = putBool("kbFlick", v)
 
+    /** TrackPoint on the Laptop and Full keyboard layouts. */
+    var kbTrackPoint: Boolean
+        get() = bool("kbTrackPoint", true)
+        set(v) = putBool("kbTrackPoint", v)
+
     /** Drag on the space bar to move the cursor with arrow keys. */
     var kbSpaceCursor: Boolean
         get() = bool("kbSpaceCursor", true)
         set(v) = putBool("kbSpaceCursor", v)
+
+    /** Android TV remote: swipe pad (Google TV app style) instead of the D-pad. */
+    var remoteSwipe: Boolean
+        get() = bool("remoteSwipe", false)
+        set(v) = putBool("remoteSwipe", v)
 
     var remoteProfile: RemoteProfile
         get() {
@@ -195,7 +222,7 @@ object Settings {
         get() = bool("remoteVolKeys", true)
         set(v) = putBool("remoteVolKeys", v)
 
-    /** 0 = follow system, 1 = light, 2 = dark. */
+    /** 0 = follow system, 1 = light, 2 = dark, 3 = mixed (light app, dark keyboard / trackpad / gamepad). */
     var themeMode: Int
         get() = p.getInt("themeMode", 0)
         set(v) = p.edit().putInt("themeMode", v).apply()
@@ -204,6 +231,31 @@ object Settings {
     var dynamicColor: Boolean
         get() = bool("dynamicColor", true)
         set(v) = putBool("dynamicColor", v)
+
+    /**
+     * App colors: 0 PadBridge's palette, 1 wallpaper (Android 12+), 2 a palette grown from [seedColor],
+     * 3 two-tone ([twoToneBg] and [twoToneFg] only). Before this setting existed, [dynamicColor] chose 0 or 1.
+     */
+    var palette: Int
+        get() = if (p.contains("palette")) p.getInt("palette", 0) else if (dynamicColor) 1 else 0
+        set(v) = p.edit().putInt("palette", v).apply()
+
+    var seedColor: Int
+        get() = p.getInt("seedColor", 0xFF3E64E5.toInt())
+        set(v) = p.edit().putInt("seedColor", v).apply()
+
+    var twoToneBg: Int
+        get() = p.getInt("twoToneBg", 0xFF0B1F33.toInt())
+        set(v) = p.edit().putInt("twoToneBg", v).apply()
+
+    var twoToneFg: Int
+        get() = p.getInt("twoToneFg", 0xFFFFC857.toInt())
+        set(v) = p.edit().putInt("twoToneFg", v).apply()
+
+    /** Translucent sheets, dialogs and menus with the app blurred behind them (blur needs Android 12+). */
+    var glass: Boolean
+        get() = bool("glass", true)
+        set(v) = putBool("glass", v)
 
     /** True-black backgrounds in dark mode (OLED). */
     var pureBlack: Boolean

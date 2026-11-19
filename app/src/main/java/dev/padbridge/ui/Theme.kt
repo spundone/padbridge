@@ -17,6 +17,10 @@ import dev.padbridge.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import dev.padbridge.C
@@ -68,13 +72,22 @@ private val BrandDark = darkColorScheme(
     surfaceBright = Color(0xFF373943), surfaceDim = Color(0xFF11131C),
 )
 
-/** AMOLED: true-black background, containers lifted just enough to stay distinguishable. */
-private fun ColorScheme.pureBlack() = copy(
-    background = Color.Black, surface = Color.Black,
-    surfaceContainerLowest = Color.Black, surfaceContainerLow = Color(0xFF0B0B0E),
-    surfaceContainer = Color(0xFF121216), surfaceContainerHigh = Color(0xFF1A1B20),
-    surfaceContainerHighest = Color(0xFF24252B),
-)
+/**
+ * AMOLED: true-black background. Containers are the palette's own (tinted) containers pulled toward black, so cards,
+ * keys and pads keep the theme's hue instead of turning flat grey, and still step up clearly from the background.
+ */
+private fun ColorScheme.pureBlack(): ColorScheme {
+    fun dim(c: Color, keep: Float) = androidx.compose.ui.graphics.lerp(Color.Black, c, keep)
+    return copy(
+        background = Color.Black, surface = Color.Black, surfaceDim = Color.Black,
+        surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = dim(surfaceContainerLow, 0.62f),
+        surfaceContainer = dim(surfaceContainer, 0.72f),
+        surfaceContainerHigh = dim(surfaceContainerHigh, 0.8f),
+        surfaceContainerHighest = dim(surfaceContainerHighest, 0.86f),
+        surfaceBright = dim(surfaceBright, 0.86f),
+    )
+}
 
 /** Bumped by the settings screen so theme changes apply immediately. */
 object ThemeState {
@@ -86,18 +99,29 @@ object ThemeState {
 fun PadBridgeTheme(content: @Composable () -> Unit) {
     ThemeState.version // recompose on settings changes
     val systemDark = isSystemInDarkTheme()
-    val dark = when (Settings.themeMode) { 1 -> false; 2 -> true; else -> systemDark }
+    val palette = Settings.palette
     val ctx = LocalContext.current
-    val dynamic = Settings.dynamicColor && Build.VERSION.SDK_INT >= 31
-    var scheme = when {
-        dynamic -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        dark -> BrandDark
-        else -> BrandLight
+    val twoTone = palette == 3
+    // Two-tone is light or dark by its background color, whatever the theme setting says.
+    // Mixed: a light app with the keyboard, trackpad and gamepad drawn dark, like a laptop's light body and dark keys.
+    val mixed = !twoTone && Settings.themeMode == 3
+    val dark = if (twoTone) androidx.compose.ui.graphics.Color(Settings.twoToneBg).luminance() < 0.5f
+    else when (Settings.themeMode) { 1, 3 -> false; 2 -> true; else -> systemDark }
+    fun schemeFor(d: Boolean): ColorScheme {
+        val s = when {
+            twoTone -> twoToneScheme(Settings.twoToneBg, Settings.twoToneFg)
+            palette == 2 -> seedScheme(Settings.seedColor, d)
+            palette == 1 && Build.VERSION.SDK_INT >= 31 -> if (d) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
+            d -> BrandDark
+            else -> BrandLight
+        }
+        return if (d && !twoTone && Settings.pureBlack) s.pureBlack() else s
     }
-    if (dark && Settings.pureBlack) scheme = scheme.pureBlack()
-    syncViewColors(scheme)
+    val scheme = schemeFor(dark)
+    val padScheme = if (mixed) schemeFor(true) else scheme
+    syncViewColors(padScheme)
     SideEffect {
-        syncViewColors(scheme)
+        syncViewColors(padScheme)
         // Status/navigation bar icons follow the app's mode, not just the system's.
         (ctx as? androidx.activity.ComponentActivity)?.enableEdgeToEdge(
             statusBarStyle = if (dark) androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
@@ -106,7 +130,17 @@ fun PadBridgeTheme(content: @Composable () -> Unit) {
             else androidx.activity.SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
     }
-    MaterialExpressiveTheme(colorScheme = scheme, motionScheme = MotionScheme.expressive(), content = content)
+    // Glass: blur the app while a sheet or dialog floats over it.
+    val blur by androidx.compose.animation.core.animateDpAsState(
+        if (Glass.blur && Glass.layers > 0) 20.dp else 0.dp, label = "glassBlur",
+    )
+    MaterialExpressiveTheme(colorScheme = scheme, motionScheme = MotionScheme.expressive()) {
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.fillMaxSize().then(
+                if (blur > 0.dp) androidx.compose.ui.Modifier.blur(blur) else androidx.compose.ui.Modifier
+            )
+        ) { content() }
+    }
 }
 
 private val AodText = Color(0xFF8A8A8A)
@@ -135,7 +169,8 @@ fun AodTheme(content: @Composable () -> Unit) {
     val outer = androidx.compose.material3.MaterialTheme.colorScheme
     applyAodViewColors()
     androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { C.AOD = false; syncViewColors(outer) }
+        // Recompose the outer theme too: in mixed mode the pads use the dark scheme, not [outer].
+        onDispose { C.AOD = false; syncViewColors(outer); ThemeState.version++ }
     }
     androidx.compose.material3.MaterialTheme(colorScheme = AodScheme, content = content)
 }

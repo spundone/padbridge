@@ -1,0 +1,6 @@
+• Custom colors from one pick, a Two-tone mode, and a Mixed theme (light app, dark keys and pads).
+• Blur and transparency on sheets, dialogs and menus.
+• Phone keyboard: Indirect mode (write with suggestions, glide and voice, then send), and an incognito toggle.
+• Google TV-style remote for Android TV, with a swipe pad.
+• TrackPoint on the Laptop and Full layouts.
+• Fix: on-screen keys could get lost on TVs.

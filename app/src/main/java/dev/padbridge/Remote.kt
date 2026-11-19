@@ -58,8 +58,8 @@ enum class RemoteProfile(val label: String) {
 
     fun extras(os: HostOs): List<RemoteButton> = when (this) {
         ANDROID_TV -> listOf(
+            // Search / Assistant has its own mic key on the Android TV remote.
             RemoteButton("Menu", RemoteOut.Key(Keys.MENU)),
-            RemoteButton("Search", RemoteOut.Consumer(AC_SEARCH)),
             RemoteButton("Rewind", RemoteOut.Consumer(REWIND)),
             RemoteButton("Fast fwd", RemoteOut.Consumer(FAST_FORWARD)),
         )
