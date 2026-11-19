@@ -17,6 +17,11 @@ undated.
   the in-screen computer chip now appears only where the top bar is hidden (full screen, landscape, AOD), and the
   "Not connected" banner only when it offers a one-tap reconnect or an error fix. The pill is hidden on the Connect
   tab, whose status card says the same thing.
+- **Minimal remote, Siri Remote style.** The clickpad is one flat disc with four small direction dots and no "OK"
+  label; pressing lights the wedge softly and swiping shows a glow under your thumb. Below it, identical round
+  icon-only keys in two columns: Back | Home, Play/Pause | a tall volume rocker, Mute. Keys shrink and brighten
+  when pressed instead of flashing the accent color. The panel behind the controls is gone. Previous / Next moved
+  to the row of extra buttons (on Slides, the clickpad's left / right already step slides).
 
 ## [1.0.1] – 2026-11-19
 

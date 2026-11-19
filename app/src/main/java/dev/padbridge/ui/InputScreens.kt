@@ -1,6 +1,10 @@
 package dev.padbridge.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -1003,53 +1007,60 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
             AndroidView({ ime }, Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp))
         }
 
-        // The remote "body": one rounded panel holding the controls, like a physical remote.
-        val bodyShape = RoundedCornerShape(40.dp)
-        Surface(
-            shape = bodyShape,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp).aodOutline(aod, bodyShape),
+        // Siri Remote-style: a large clickpad, then a quiet two-column grid of identical round keys
+        // (Back | Home, Play | volume rocker, Mute). No panel, no colored keys: the controls float on the page.
+        Column(
+            Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-        // Back · Home
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            RemoteKey(back, Icons.AutoMirrored.Rounded.ArrowBack, aod, big = true)
-            RemoteKey(home, if (profile == dev.padbridge.RemoteProfile.SLIDES) Icons.Rounded.Slideshow else Icons.Rounded.Home, aod, big = true)
+            val slides = profile == dev.padbridge.RemoteProfile.SLIDES
+            val key = 64.dp
+            val gap = 16.dp
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center,
+            ) {
+                // Square, as large as fits (capped for tablets).
+                val side = minOf(maxWidth - 16.dp, maxHeight, 400.dp)
+                AndroidView(
+                    factory = { DpadView(it) },
+                    update = { v -> aod; v.invalidate() },
+                    modifier = Modifier.size(side),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                    RemoteKey(back, Icons.Rounded.ChevronLeft, aod, key)
+                    RemoteKey(
+                        dev.padbridge.RemoteButton("Play / pause", dev.padbridge.RemoteOut.Consumer(Keys.C_PLAY_PAUSE)),
+                        Icons.Rounded.PlayArrow, aod, key, secondIcon = Icons.Rounded.Pause,
+                    )
+                    RemoteKey(
+                        dev.padbridge.RemoteButton("Mute", dev.padbridge.RemoteOut.Consumer(Keys.C_MUTE)),
+                        Icons.AutoMirrored.Rounded.VolumeOff, aod, key,
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                    RemoteKey(home, if (slides) Icons.Rounded.Slideshow else Icons.Rounded.Tv, aod, key)
+                    VolumeRocker(aod, key, key * 2 + gap)
+                }
+            }
         }
 
-        // D-pad
-        androidx.compose.foundation.layout.BoxWithConstraints(
-            Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center,
-        ) {
-            // Square, as large as fits: the smaller of the free width and height (capped for tablets).
-            val side = minOf(maxWidth, maxHeight, 420.dp)
-            AndroidView(
-                factory = { DpadView(it) },
-                update = { v -> aod; v.invalidate() },
-                modifier = Modifier.size(side),
-            )
-        }
-
-        // Transport + volume
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            RemoteKey(prev, if (profile == dev.padbridge.RemoteProfile.SLIDES) Icons.Rounded.ChevronLeft else Icons.Rounded.SkipPrevious, aod)
-            RemoteKey(dev.padbridge.RemoteButton("Play / pause", dev.padbridge.RemoteOut.Consumer(Keys.C_PLAY_PAUSE)), Icons.Rounded.PlayArrow, aod, primary = true)
-            RemoteKey(next, if (profile == dev.padbridge.RemoteProfile.SLIDES) Icons.Rounded.ChevronRight else Icons.Rounded.SkipNext, aod)
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            RemoteKey(dev.padbridge.RemoteButton("Volume down", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_DOWN)), Icons.AutoMirrored.Rounded.VolumeDown, aod)
-            RemoteKey(dev.padbridge.RemoteButton("Mute", dev.padbridge.RemoteOut.Consumer(Keys.C_MUTE)), Icons.AutoMirrored.Rounded.VolumeOff, aod)
-            RemoteKey(dev.padbridge.RemoteButton("Volume up", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_UP)), Icons.AutoMirrored.Rounded.VolumeUp, aod)
-        }
-        }
-        }
-
-        // Profile extras
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-            items(profile.extras(os)) { b ->
-                androidx.compose.material3.OutlinedButton(
+        // Profile extras. Previous / next live here (slides already step with the clickpad's left / right).
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            val extras = (if (profile == dev.padbridge.RemoteProfile.SLIDES) emptyList() else listOf(prev, next)) + profile.extras(os)
+            items(extras) { b ->
+                Surface(
                     onClick = { dev.padbridge.RemoteSender.tap(b.out); dev.padbridge.Haptics.tick() },
-                ) { Text(b.label) }
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.aodOutline(aod, androidx.compose.foundation.shape.CircleShape),
+                ) {
+                    Text(b.label, style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+                }
             }
             item {
                 androidx.compose.material3.FilterChip(
@@ -1057,52 +1068,85 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
                     onClick = { volKeys = !volKeys; Settings.remoteVolumeKeys = volKeys },
                     label = { Text(if (profile == dev.padbridge.RemoteProfile.SLIDES) "Volume keys = slides" else "Volume keys") },
                     leadingIcon = { Icon(Icons.Rounded.Vibration, null, Modifier.size(18.dp)) },
+                    shape = androidx.compose.foundation.shape.CircleShape,
                 )
             }
         }
     }
 }
 
-/** A remote button: keys are held while your finger is down (so they repeat); consumer keys tap. */
+/** Press handling shared by remote keys: held while the finger is down (keys repeat), with a soft press state. */
+private fun Modifier.remotePress(b: dev.padbridge.RemoteButton, onPressed: (Boolean) -> Unit): Modifier =
+    semantics { contentDescription = b.label; role = androidx.compose.ui.semantics.Role.Button }
+        .pointerInput(b) {
+            detectTapGestures(onPress = {
+                onPressed(true)
+                dev.padbridge.Haptics.click()
+                dev.padbridge.RemoteSender.down(b.out)
+                tryAwaitRelease()
+                dev.padbridge.RemoteSender.up(b.out)
+                onPressed(false)
+            })
+        }
+
+@Composable
+private fun pressColor(pressed: Boolean): androidx.compose.ui.graphics.Color {
+    val cs = MaterialTheme.colorScheme
+    return androidx.compose.animation.animateColorAsState(
+        if (pressed) cs.surfaceContainerHighest else cs.surfaceContainerHigh, label = "keyColor",
+    ).value
+}
+
+/** A round, icon-only remote key, all the same neutral tone like the Siri Remote's buttons. */
 @Composable
 private fun RemoteKey(
-    b: dev.padbridge.RemoteButton, icon: ImageVector, aod: Boolean, big: Boolean = false, primary: Boolean = false,
+    b: dev.padbridge.RemoteButton, icon: ImageVector, aod: Boolean, size: androidx.compose.ui.unit.Dp,
+    secondIcon: ImageVector? = null,
 ) {
-    val size = if (big) 64.dp else 56.dp
-    val shape = if (big) RoundedCornerShape(20.dp) else androidx.compose.foundation.shape.CircleShape
     var pressed by remember { mutableStateOf(false) }
-    val cs = MaterialTheme.colorScheme
+    val scale by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.9f else 1f, label = "keyScale")
+    val shape = androidx.compose.foundation.shape.CircleShape
     Surface(
-        shape = if (pressed) RoundedCornerShape(12.dp) else shape,
-        color = when {
-            pressed -> cs.primary
-            primary -> cs.primaryContainer
-            else -> cs.secondaryContainer
-        },
-        contentColor = when {
-            pressed -> cs.onPrimary
-            primary -> cs.onPrimaryContainer
-            else -> cs.onSecondaryContainer
-        },
-        modifier = Modifier.size(width = if (big) 112.dp else size, height = size)
+        shape = shape,
+        color = pressColor(pressed),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.size(size)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .aodOutline(aod, shape)
-            .semantics { contentDescription = b.label; role = androidx.compose.ui.semantics.Role.Button }
-            .pointerInput(b) {
-                detectTapGestures(onPress = {
-                    pressed = true
-                    dev.padbridge.Haptics.click()
-                    dev.padbridge.RemoteSender.down(b.out)
-                    tryAwaitRelease()
-                    dev.padbridge.RemoteSender.up(b.out)
-                    pressed = false
-                })
-            },
+            .remotePress(b) { pressed = it },
     ) {
-        Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null)
-            if (big) {
-                Spacer(Modifier.width(6.dp))
-                Text(b.label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        Box(contentAlignment = Alignment.Center) {
+            if (secondIcon == null) Icon(icon, null, Modifier.size(26.dp))
+            else Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, Modifier.size(20.dp))
+                Icon(secondIcon, null, Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+/** Siri Remote-style volume rocker: one tall pill, + on top and − below. */
+@Composable
+private fun VolumeRocker(aod: Boolean, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
+    val up = remember { dev.padbridge.RemoteButton("Volume up", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_UP)) }
+    val down = remember { dev.padbridge.RemoteButton("Volume down", dev.padbridge.RemoteOut.Consumer(Keys.C_VOL_DOWN)) }
+    var upPressed by remember { mutableStateOf(false) }
+    var downPressed by remember { mutableStateOf(false) }
+    val shape = androidx.compose.foundation.shape.CircleShape
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.size(width, height).aodOutline(aod, shape),
+    ) {
+        Column {
+            listOf(Triple(up, Icons.Rounded.Add, upPressed), Triple(down, Icons.Rounded.Remove, downPressed)).forEach { (b, icon, pr) ->
+                Box(
+                    Modifier.weight(1f).fillMaxWidth()
+                        .background(if (pr) MaterialTheme.colorScheme.surfaceContainerHighest else androidx.compose.ui.graphics.Color.Transparent)
+                        .remotePress(b) { if (b === up) upPressed = it else downPressed = it },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(icon, null, Modifier.size(26.dp)) }
             }
         }
     }

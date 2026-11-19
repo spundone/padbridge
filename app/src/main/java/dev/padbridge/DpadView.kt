@@ -13,7 +13,7 @@ import kotlin.math.hypot
 import kotlin.math.min
 
 /**
- * Round TV-remote D-pad. Wedges send arrow keys, held while pressed (the host repeats them);
+ * Round TV-remote clickpad. Wedges send arrow keys, held while pressed (the host repeats them);
  * the center sends OK on tap. Swiping across the center works like a Siri Remote / touch remote:
  * every ~48 dp of travel sends one arrow in that direction.
  */
@@ -45,7 +45,6 @@ class DpadView(ctx: Context) : View(ctx) {
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true }
     private val path = Path()
     private val oval = RectF()
     private val innerOval = RectF()
@@ -58,7 +57,6 @@ class DpadView(ctx: Context) : View(ctx) {
         innerR = outerR * 0.42f
         oval.set(cx - outerR, cy - outerR, cx + outerR, cy + outerR)
         innerOval.set(cx - innerR, cy - innerR, cx + innerR, cy + innerR)
-        text.textSize = innerR * 0.42f
     }
 
     private fun dirAt(x: Float, y: Float): Dir? {
@@ -130,53 +128,52 @@ class DpadView(ctx: Context) : View(ctx) {
 
     override fun onDetachedFromWindow() { releaseHeld(); super.onDetachedFromWindow() }
 
+    /**
+     * Siri Remote-style clickpad: one flat disc, a hairline around the center, four small dots for the
+     * directions. A pressed direction lights a soft wedge; a swipe shows a glow under the thumb.
+     */
     override fun onDraw(c: Canvas) {
-        // Ring background
-        fill.fillOrOutline(C.SURFACE3, density)
+        fill.fillOrOutline(C.SURFACE2, density)
         c.drawCircle(cx, cy, outerR, fill)
 
-        // Wedges
         for (d in Dir.entries) {
             val on = held == d || flash == d
             if (on) {
                 path.reset()
-                path.arcTo(oval, d.angle - 44f, 88f)
-                path.arcTo(innerOval, d.angle + 44f, -88f)
+                path.arcTo(oval, d.angle - 45f, 90f)
+                path.arcTo(innerOval, d.angle + 45f, -90f)
                 path.close()
-                fill.fillOrOutline(C.ACCENT_DIM, density, true)
+                if (C.AOD) fill.fillOrOutline(0, density, true)
+                else { fill.style = Paint.Style.FILL; fill.color = C.SURFACE3 }
                 c.drawPath(path, fill)
             }
-            // Chevron
             val rad = Math.toRadians(d.angle.toDouble())
             val r = (outerR + innerR) / 2f
-            val px = cx + (Math.cos(rad) * r).toFloat()
-            val py = cy + (Math.sin(rad) * r).toFloat()
-            val s = outerR * 0.09f
-            path.reset()
-            val ax = Math.cos(rad).toFloat(); val ay = Math.sin(rad).toFloat()
-            val nx = -ay; val ny = ax
-            path.moveTo(px - ax * s + nx * s * 1.4f, py - ay * s + ny * s * 1.4f)
-            path.lineTo(px + ax * s, py + ay * s)
-            path.lineTo(px - ax * s - nx * s * 1.4f, py - ay * s - ny * s * 1.4f)
-            line.color = if (on) (if (C.AOD) C.ACCENT else C.ON_ACCENT_DIM) else C.TEXT
-            line.strokeWidth = 3 * density; line.strokeCap = Paint.Cap.ROUND; line.strokeJoin = Paint.Join.ROUND
-            c.drawPath(path, line)
+            fill.style = Paint.Style.FILL
+            fill.color = if (on) C.TEXT else C.MUTED
+            c.drawCircle(cx + (Math.cos(rad) * r).toFloat(), cy + (Math.sin(rad) * r).toFloat(), (if (on) 4f else 3f) * density, fill)
         }
 
-        // Divider ring between wedges and center
-        line.color = C.STROKE; line.strokeWidth = density
-        c.drawCircle(cx, cy, innerR + 6 * density, line)
-
-        // Center OK
+        // Center: same surface, set off by a hairline; brightens while pressed.
         val centerOn = centerDown && !swiping
-        // OK is the remote's main control: tonal accent at rest, solid accent when pressed.
-        fill.fillOrOutline(if (centerOn) C.ACCENT else C.ACCENT_DIM, density, centerOn)
-        c.drawCircle(cx, cy, innerR, fill)
-        text.color = when {
-            C.AOD -> if (centerOn) C.ACCENT else C.TEXT
-            centerOn -> C.ON_ACCENT
-            else -> C.ON_ACCENT_DIM
+        if (centerOn) {
+            fill.fillOrOutline(C.SURFACE3, density, true)
+            c.drawCircle(cx, cy, innerR, fill)
         }
-        c.drawText("OK", cx, cy - (text.ascent() + text.descent()) / 2, text)
+        line.color = if (C.AOD) C.AOD_LINE else C.STROKE
+        line.strokeWidth = density
+        c.drawCircle(cx, cy, innerR, line)
+
+        // Swipe glow under the thumb, kept inside the disc.
+        if (swiping && !C.AOD) {
+            val gx = lastX; val gy = lastY
+            val dist = hypot(gx - cx, gy - cy)
+            val k = if (dist > outerR - 24 * density) (outerR - 24 * density) / dist else 1f
+            fill.style = Paint.Style.FILL
+            fill.color = C.TEXT
+            fill.alpha = 28
+            c.drawCircle(cx + (gx - cx) * k, cy + (gy - cy) * k, 28 * density, fill)
+            fill.alpha = 255
+        }
     }
 }
