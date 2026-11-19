@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Laptop
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -453,6 +454,8 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     val align = remember(landscape, cfg) { Settings.kbAlign(landscape) }
     val gap = remember(cfg) { Settings.kbSplitGap }
     val preview = remember(cfg) { Settings.kbPreview }
+    val flick = remember(cfg) { Settings.kbFlick }
+    val spaceCursor = remember(cfg) { Settings.kbSpaceCursor }
 
     val freePad = remember(cfg) { resizable && Settings.kbFreePad }
     val laptop = rememberLaptopDeck(cfg)
@@ -464,6 +467,8 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
         update = { v ->
             hid.version
             v.keyPreview = preview
+            v.flick = flick
+            v.spaceCursor = spaceCursor
             v.configure(os, layout, gap)
             v.invalidate()
         },
@@ -771,6 +776,8 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var gap by remember { mutableStateOf(Settings.kbSplitGap) }
     var rows by remember { mutableStateOf(Settings.kbShowRows(landscape)) }
     var preview by remember { mutableStateOf(Settings.kbPreview) }
+    var flick by remember { mutableStateOf(Settings.kbFlick) }
+    var spaceCursor by remember { mutableStateOf(Settings.kbSpaceCursor) }
     var predictive by remember { mutableStateOf(Settings.predictiveTyping) }
     var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
     val tabletLand = isTablet() && landscape
@@ -782,7 +789,9 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var stylus by remember { mutableStateOf(Settings.stylus) }
     var palm by remember { mutableStateOf(Settings.palmRejection) }
     val icons = mapOf(
+        dev.padbridge.KbLayout.LAPTOP to Icons.Rounded.Laptop,
         dev.padbridge.KbLayout.FULL to Icons.Rounded.Keyboard,
+        dev.padbridge.KbLayout.THINKPAD to Icons.Rounded.Mouse,
         dev.padbridge.KbLayout.FULL_NUMPAD to Icons.Rounded.Calculate,
         dev.padbridge.KbLayout.COMPACT_65 to Icons.Rounded.KeyboardAlt,
         dev.padbridge.KbLayout.SPLIT to Icons.Rounded.VerticalSplit,
@@ -933,16 +942,26 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
             item { Text("Options", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) }
             item {
-                SheetSwitch("Trackpad in free space", freePadOn, 0, 4) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
+                SheetSwitch("Trackpad in free space", freePadOn, 0, 6) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
             }
             item {
-                SheetSwitch("Shortcut and media rows", rows, 1, 4) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
+                SheetSwitch("Shortcut and media rows", rows, 1, 6) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
             }
             item {
-                SheetSwitch("Key preview bubbles", preview, 2, 4) { preview = it; Settings.kbPreview = it; onChanged() }
+                SheetSwitch("Key preview bubbles", preview, 2, 6) { preview = it; Settings.kbPreview = it; onChanged() }
             }
             item {
-                SheetSwitch("Phone keyboard: predictive (glide, autocorrect)", predictive, 3, 4) {
+                SheetSwitch("Flick up on a key for its shifted character (! for 1, A for a)", flick, 3, 6) {
+                    flick = it; Settings.kbFlick = it; onChanged()
+                }
+            }
+            item {
+                SheetSwitch("Drag the space bar to move the cursor", spaceCursor, 4, 6) {
+                    spaceCursor = it; Settings.kbSpaceCursor = it; onChanged()
+                }
+            }
+            item {
+                SheetSwitch("Phone keyboard: predictive (glide, autocorrect)", predictive, 5, 6) {
                     predictive = it; Settings.predictiveTyping = it; onChanged()
                 }
             }

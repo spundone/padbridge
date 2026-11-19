@@ -1,0 +1,5 @@
+• New Laptop keyboard layout (default): five taller rows, F-keys on Fn + numbers.
+• New ThinkPad layout with a TrackPoint and its three buttons.
+• Flick up on a key for its shifted character; drag the space bar to move the cursor.
+• Optional N-key rollover: any number of keys at once (re-pair needed).
+• Laptop deck: typing with hands resting on the trackpad now works, and palm rejection is stronger.

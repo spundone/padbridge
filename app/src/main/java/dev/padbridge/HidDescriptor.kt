@@ -13,8 +13,11 @@ package dev.padbridge
  *  Report 4  Gamepad   (input 9 bytes: 16 buttons, hat, X Y Z Rz, brake, accelerator)
  */
 object HidDescriptor {
-    /** v1: keyboard, mouse, consumer, gamepad. v2 adds the Windows Precision Touchpad collections. */
-    val VERSION get() = if (Settings.nativeTouchpad) 2 else 1
+    /**
+     * v1: keyboard, mouse, consumer, gamepad. v2 adds the Windows Precision Touchpad collections, v3 the N-key
+     * rollover keyboard, v4 both.
+     */
+    val VERSION get() = 1 + (if (Settings.nativeTouchpad) 1 else 0) + (if (Settings.nkro) 2 else 0)
 
     const val ID_KEYBOARD = 1
     const val ID_MOUSE = 2
@@ -25,6 +28,33 @@ object HidDescriptor {
     const val MOUSE_LEN = 7
     const val CONSUMER_LEN = 2
     const val GAMEPAD_LEN = 9
+
+    /** N-key rollover keyboard (opt-in): modifiers + one bit per key from [NKRO_FIRST] to [NKRO_LAST]. */
+    const val ID_NKRO = 0x0B
+    const val NKRO_FIRST = 0x04
+    const val NKRO_LAST = 0x7B
+    const val NKRO_LEN = 1 + (NKRO_LAST - NKRO_FIRST + 1) / 8
+
+    /** A second keyboard that reports every held key as a bit, so any number of keys can be down at once. */
+    val NKRO: ByteArray = b(
+        0x05, 0x01,        // Usage Page (Generic Desktop)
+        0x09, 0x06,        // Usage (Keyboard)
+        0xA1, 0x01,        // Collection (Application)
+        0x85, ID_NKRO,     //   Report ID
+        0x05, 0x07,        //   Usage Page (Key Codes)
+        0x19, 0xE0,        //   Usage Min (Left Control)
+        0x29, 0xE7,        //   Usage Max (Right GUI)
+        0x15, 0x00,        //   Logical Min 0
+        0x25, 0x01,        //   Logical Max 1
+        0x75, 0x01,        //   Report Size 1
+        0x95, 0x08,        //   Report Count 8
+        0x81, 0x02,        //   Input (Data, Var, Abs)    modifiers
+        0x19, NKRO_FIRST,  //   Usage Min (a)
+        0x29, NKRO_LAST,   //   Usage Max
+        0x95, NKRO_LAST - NKRO_FIRST + 1, // Report Count 120
+        0x81, 0x02,        //   Input (Data, Var, Abs)    one bit per key
+        0xC0,              // End Collection
+    )
 
     /** Physical max of the resolution multiplier: each wheel unit is 1/8 notch once the host enables it. */
     const val HIRES_MULTIPLIER = 8
@@ -276,6 +306,7 @@ object HidDescriptor {
         return out + tail
     }
 
-    /** The descriptor to register: base, plus PTP when native touchpad mode is on. */
-    fun current(physW: Int, physH: Int): ByteArray = if (Settings.nativeTouchpad) BYTES + ptp(physW, physH) else BYTES
+    /** The descriptor to register: base, plus N-key rollover and PTP when they're on. */
+    fun current(physW: Int, physH: Int): ByteArray =
+        BYTES + (if (Settings.nkro) NKRO else ByteArray(0)) + (if (Settings.nativeTouchpad) ptp(physW, physH) else ByteArray(0))
 }

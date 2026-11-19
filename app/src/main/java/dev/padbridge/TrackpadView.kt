@@ -52,7 +52,7 @@ object Typing {
  * Mappable (see [GestureSlot]): 2/3/4-finger taps, press-and-hold, 2-finger horizontal swipe,
  *            rotate, 3- and 4-finger swipes, edge swipes. Optional 3-finger drag.
  */
-class TrackpadView(ctx: Context) : View(ctx) {
+class TrackpadView(ctx: Context) : View(ctx), Routable {
 
     private enum class Mode { NONE, MOVE, SCROLL, NAV, PINCH, ROTATE, SWIPE, THREE_DRAG, EDGE_SCROLL_V, EDGE_SCROLL_H, EDGE_SWIPE, DONE }
     private enum class Edge { NONE, LEFT, RIGHT, TOP, RIGHT_STRIP, BOTTOM_STRIP }
@@ -126,8 +126,9 @@ class TrackpadView(ctx: Context) : View(ctx) {
 
     private val longPress = Runnable {
         if (mode != Mode.NONE || moved || dragging || last.size != 1) return@Runnable
-        // A hand resting while typing isn't a press and hold.
-        if (Settings.palmRejection && Typing.lastKey > downTime) return@Runnable
+        // A hand resting while typing isn't a press and hold. On the keyboard's trackpad (the palm rest) a resting
+        // palm would otherwise hold the mouse button down, so press and hold is off there with palm rejection.
+        if (Settings.palmRejection && (compact || Typing.lastKey > downTime)) return@Runnable
         if (Settings.gesture(GestureSlot.LONG_PRESS) == GAction.HOLD_DRAG) {
             // Samsung DeX style: touch and hold, then move to drag or select text.
             dragging = true
@@ -248,20 +249,25 @@ class TrackpadView(ctx: Context) : View(ctx) {
         }
     }
 
-    override fun onTouchEvent(e: MotionEvent): Boolean {
+    override fun onTouchEvent(e: MotionEvent): Boolean = TouchRouter.route(this, e)
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        TouchRouter.register(this)
+    }
+
+    override fun handleTouch(e: MotionEvent): Boolean {
         if (Settings.stylus) {
             if (penTouching || (e.actionMasked == MotionEvent.ACTION_DOWN && isPen(e))) { handlePen(e); return true }
             // Palm rejection: a hand resting on the screen while the pen is near does nothing.
             if (penNear() && e.actionMasked == MotionEvent.ACTION_DOWN) return false
         }
-        if (Settings.palmRejection) {
-            val f = rejectPalms(e)
-            if (f !== e) {
-                if (f != null) { handle(f); f.recycle() }
-                invalidate()
-                return true
-            }
-        } else if (rejected.isNotEmpty() || passed.isNotEmpty()) { rejected.clear(); passed.clear(); passedStart.clear() }
+        val f = filterPointers(e)
+        if (f !== e) {
+            if (f != null) { handle(f); f.recycle() }
+            invalidate()
+            return true
+        }
         handle(e)
         invalidate()
         return true
@@ -297,71 +303,78 @@ class TrackpadView(ctx: Context) : View(ctx) {
     /** When the first of [passed] went down. */
     private var passedSince = 0L
     /** Where each of [passed] went down, and whether any of them has since moved (so it's a real gesture). */
-    private val passedStart = HashMap<Int, PointF>()
-    private var passedMoved = false
     private val ydpi = resources.displayMetrics.ydpi
 
     /**
-     * Laptop-style palm rejection, applied before any gesture code. Returns [e] untouched when nothing is rejected,
-     * null when the event only concerns rejected pointers, or a new event without them (the caller recycles it).
+     * Decides which pointers the gesture code sees, before any of it runs. Returns [e] untouched when every pointer
+     * counts, null when the event only concerns other pointers, or a new event without them (the caller recycles it).
      *
-     * - A touch that lands within a moment of a key being typed is ignored until it lifts (the hand brushing the
-     *   pad while typing), as is a contact the size of a palm.
-     * - A touch that rests without moving while keys are typed was a palm: its gesture is cancelled instead of
-     *   ending in a tap or a long press.
+     * - Pointers that went down outside this view are never ours. Compose hands an embedded view the whole
+     *   MotionEvent, so fingers typing on the keyboard next to the pad would otherwise turn a resting palm into a
+     *   two-finger scroll or a right click.
+     *
+     * Laptop-style palm rejection ([Settings.palmRejection]), like "disable touchpad while typing":
+     * - a touch that lands within a moment of a key being typed is ignored until it lifts, as is a palm-sized contact;
+     * - typing a key ends whatever is on the pad (a resting palm, or one that crept while you typed): it's cancelled
+     *   instead of moving the pointer, tapping, long-pressing or holding the button, and ignored until it lifts;
      * - Android's own palm rejection (FLAG_CANCELED) cancels the gesture too.
      */
-    private fun rejectPalms(e: MotionEvent): MotionEvent? {
+    private fun filterPointers(e: MotionEvent): MotionEvent? {
+        val palm = Settings.palmRejection
         val action = e.actionMasked
         val idx = e.actionIndex
         val pid = e.getPointerId(idx)
         when (action) {
-            MotionEvent.ACTION_DOWN -> { rejected.clear(); passed.clear(); passedStart.clear(); passedMoved = false }
+            MotionEvent.ACTION_DOWN -> { rejected.clear(); passed.clear() }
             MotionEvent.ACTION_CANCEL -> {
-                rejected.clear(); passedStart.clear()
+                rejected.clear()
                 val had = passed.isNotEmpty(); passed.clear()
-                return if (had) e else null
+                return if (had) rebuildOrSame(e, MotionEvent.ACTION_CANCEL) else null
             }
         }
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
-            if (Typing.recent(e.eventTime) || Typing.isPalm(e, idx, ydpi)) { rejected += pid; return null }
-            if (passed.isEmpty()) { passedSince = e.eventTime; passedMoved = false }
+            val x = e.getX(idx); val y = e.getY(idx)
+            val outside = x < 0f || y < 0f || x > width || y > height
+            if (outside || palm && (Typing.recent(e.eventTime) || Typing.isPalm(e, idx, ydpi))) { rejected += pid; return null }
+            if (passed.isEmpty()) passedSince = e.eventTime
             passed += pid
-            passedStart[pid] = PointF(e.getX(idx), e.getY(idx))
-            return if (rejected.isEmpty() && passed.size == e.pointerCount) e else rebuild(e, action, pid)
+            return if (passed.size == e.pointerCount) e else rebuild(e, action, pid)
         }
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
-            if (rejected.remove(pid)) return null
+            if (rejected.remove(pid) || pid !in passed) return null
             val systemPalm = android.os.Build.VERSION.SDK_INT >= 33 && e.flags and MotionEvent.FLAG_CANCELED != 0
-            // Resting while keys were typed: a palm, not a tap.
-            val palmRest = !passedMoved && !dragging && Typing.lastKey > passedSince
-            if (systemPalm || palmRest) return cancelPassed(e)
-            val simple = rejected.isEmpty() && passed.size == e.pointerCount
-            val out = if (simple) e else rebuild(e, if (passed.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP, pid)
-            passed.remove(pid); passedStart.remove(pid)
+            if (palm && (systemPalm || typedDuring())) return cancelPassed(e)
+            val out = if (passed.size == e.pointerCount) e
+                else rebuild(e, if (passed.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP, pid)
+            passed.remove(pid)
             return out
         }
-        // MOVE: a contact that spreads into a palm, or rests still while typing, ends the gesture.
+        // MOVE
         if (passed.isEmpty()) return null
-        for (i in 0 until e.pointerCount) {
-            val id = e.getPointerId(i)
-            if (id !in passed) continue
-            if (Typing.isPalm(e, i, ydpi)) return cancelPassed(e)
-            val s = passedStart[id]
-            if (s != null && hypot(e.getX(i) - s.x, e.getY(i) - s.y) > tapSlop) passedMoved = true
+        if (palm) {
+            if (typedDuring()) return cancelPassed(e)
+            for (i in 0 until e.pointerCount) if (e.getPointerId(i) in passed && Typing.isPalm(e, i, ydpi)) return cancelPassed(e)
         }
-        if (!passedMoved && !dragging && Typing.lastKey > passedSince) return cancelPassed(e)
-        return if (rejected.isEmpty()) e else rebuild(e, MotionEvent.ACTION_MOVE, -1)
+        return rebuildOrSame(e, MotionEvent.ACTION_MOVE)
     }
+
+    /**
+     * A key was typed since the touches on the pad went down. This ends drags too: a palm resting still turns into
+     * press-and-hold, which would otherwise keep the mouse button held while you type.
+     */
+    private fun typedDuring() = Typing.lastKey > passedSince
+
+    private fun rebuildOrSame(e: MotionEvent, action: Int) =
+        if (passed.size == e.pointerCount && e.actionMasked == action) e else rebuild(e, action, -1)
 
     /** Cancel the gesture and ignore every pointer still down until it lifts. */
     private fun cancelPassed(e: MotionEvent): MotionEvent? {
         if (passed.isEmpty()) return null
         val out = rebuild(e, MotionEvent.ACTION_CANCEL, -1)
-        for (i in 0 until e.pointerCount) rejected += e.getPointerId(i)
+        rejected += passed
         val action = e.actionMasked
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) rejected -= e.getPointerId(e.actionIndex)
-        passed.clear(); passedStart.clear()
+        passed.clear()
         return out
     }
 
@@ -860,6 +873,7 @@ class TrackpadView(ctx: Context) : View(ctx) {
     }
 
     override fun onDetachedFromWindow() {
+        TouchRouter.unregister(this)
         stopMomentum()
         cancel()
         super.onDetachedFromWindow()
@@ -875,7 +889,7 @@ class TrackpadView(ctx: Context) : View(ctx) {
 }
 
 /** Physical-style click buttons under the pad. Separate view, so you can click with a thumb while dragging. */
-class ClickBar(ctx: Context) : View(ctx) {
+class ClickBar(ctx: Context) : View(ctx), Routable {
     private val density = resources.displayMetrics.density
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 14 * density; textAlign = Paint.Align.CENTER }
@@ -883,9 +897,22 @@ class ClickBar(ctx: Context) : View(ctx) {
     private val rect = RectF()
     private val path = android.graphics.Path()
 
+    override fun onDetachedFromWindow() {
+        TouchRouter.unregister(this)
+        held.values.toSet().forEach { HidManager.setButton(it, false) }; held.clear()
+        super.onDetachedFromWindow()
+    }
+
     private fun buttonAt(x: Float) = if (x < width / 2f) TrackpadView.BTN_LEFT else TrackpadView.BTN_RIGHT
 
-    override fun onTouchEvent(e: MotionEvent): Boolean {
+    override fun onTouchEvent(e: MotionEvent): Boolean = TouchRouter.route(this, e)
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        TouchRouter.register(this)
+    }
+
+    override fun handleTouch(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val i = e.actionIndex

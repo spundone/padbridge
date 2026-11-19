@@ -163,10 +163,13 @@ object HidManager {
 
     /** Descriptor registered now: v2 includes the Precision Touchpad when native touchpad mode is on. */
     @Volatile var ptpRegistered = false; private set
+    /** Descriptor registered now includes the N-key rollover keyboard. */
+    @Volatile var nkroRegistered = false; private set
 
     private fun sdp(): BluetoothHidDeviceAppSdpSettings {
         val (w, h) = padSize()
         ptpRegistered = Settings.nativeTouchpad
+        nkroRegistered = Settings.nkro
         val descriptor = HidDescriptor.current(w, h)
         Log.i(TAG, "descriptor v${HidDescriptor.VERSION}, ${descriptor.size} bytes: " +
             descriptor.joinToString("") { "%02x".format(it) })
@@ -698,6 +701,7 @@ object HidManager {
                             HidDescriptor.ID_MOUSE -> HidDescriptor.MOUSE_LEN
                             HidDescriptor.ID_CONSUMER -> HidDescriptor.CONSUMER_LEN
                             HidDescriptor.ID_GAMEPAD -> HidDescriptor.GAMEPAD_LEN
+                            HidDescriptor.ID_NKRO -> if (nkroRegistered) HidDescriptor.NKRO_LEN else -1
                             HidDescriptor.ID_PTP_INPUT -> if (ptpRegistered) HidDescriptor.PTP_LEN else -1
                             else -> -1
                         }
@@ -796,7 +800,7 @@ object HidManager {
 
     private fun resetReportState() = io.post {
         mouseButtons = 0; accX = 0f; accY = 0f; accWheel = 0f; accPan = 0f
-        kbMods = 0; kbKeys.clear(); lastGamepad = neutralGamepad()
+        kbMods = 0; kbKeys.clear(); lastBoot = ByteArray(HidDescriptor.KEYBOARD_LEN); lastGamepad = neutralGamepad()
     }
 
     private fun send(id: Int, data: ByteArray) {
@@ -886,7 +890,26 @@ object HidManager {
 
     // ------------------------------------------------------------------ keyboard
 
+    private var lastBoot = ByteArray(HidDescriptor.KEYBOARD_LEN)
+
     private fun sendKeyboard() {
+        if (nkroRegistered) {
+            // Everything the bitmap covers goes in the N-key report; rare keys outside it use the 6-key report.
+            val n = ByteArray(HidDescriptor.NKRO_LEN)
+            n[0] = kbMods.toByte()
+            val rest = ArrayList<Int>()
+            for (k in kbKeys) {
+                if (k in HidDescriptor.NKRO_FIRST..HidDescriptor.NKRO_LAST) {
+                    val bit = k - HidDescriptor.NKRO_FIRST
+                    n[1 + bit / 8] = (n[1 + bit / 8].toInt() or (1 shl (bit % 8))).toByte()
+                } else rest += k
+            }
+            send(HidDescriptor.ID_NKRO, n)
+            val r = ByteArray(HidDescriptor.KEYBOARD_LEN)
+            rest.take(6).forEachIndexed { i, k -> r[2 + i] = k.toByte() }
+            if (!r.contentEquals(lastBoot)) { lastBoot = r; send(HidDescriptor.ID_KEYBOARD, r) }
+            return
+        }
         val r = ByteArray(HidDescriptor.KEYBOARD_LEN)
         r[0] = kbMods.toByte()
         kbKeys.take(6).forEachIndexed { i, k -> r[2 + i] = k.toByte() }

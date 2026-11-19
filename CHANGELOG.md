@@ -7,6 +7,35 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
+## [Unreleased]
+
+## [1.3.3] – 2026-11-19
+
+### Added
+- **Laptop** keyboard layout, now the default: five rows like Windows' traditional touch keyboard, with the F-keys on
+  Fn + the number row (and ` on Fn + Esc), so every key is about 20% taller. The six-row Full layout is still there.
+- **ThinkPad** keyboard layout: low F-row with Home, End, Ins and Del, Fn bottom-left, PrtSc beside the right Ctrl,
+  half-height arrows with PgUp and PgDn, and a red **TrackPoint** between G, H and B with its three buttons under the
+  space bar. Push the TrackPoint to move the pointer (further = faster), tap it to click, and hold the middle
+  button while pushing it to scroll.
+- Flick up on a key to type its shifted character: `!` from 1, `:` from ;, capitals from letters. Keys that can be
+  flicked type when you lift your finger, or turn into a normal held key (with key repeat) if you hold them.
+- Drag the space bar to move the cursor: left and right (and up and down) send arrow keys. A tap still types a
+  space.
+- Both can be turned off in the keyboard sheet, and are off on the Gaming and Numpad layouts.
+- **N-key rollover** (Settings › Trackpad, opt-in): the keyboard reports every held key instead of at most six, for
+  big chords and games. It changes the Bluetooth HID descriptor (v3, or v4 with the native touchpad), so remove
+  and re-pair the phone on the computer once after turning it on.
+
+### Fixed
+- Laptop keyboard: you can now type with your hands resting on the trackpad. Keys pressed while anything touched
+  the trackpad were lost (and could reach the trackpad as a second finger, scrolling or right-clicking), because
+  every finger went to whichever of the two was touched first. Fingers now go to the keyboard, trackpad or click
+  button they land on, which also fixes Shift-click and clicking with the Left / Right buttons while moving.
+- Palm rejection: typing now ends anything resting on the trackpad, including a palm that had turned into press
+  and hold (which held the mouse button down), and press and hold is off on the keyboard's trackpad while palm
+  rejection is on.
+
 ## [1.3.2] – 2026-11-19
 
 ### Added

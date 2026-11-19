@@ -79,9 +79,12 @@ object Settings {
     // ---- On-screen keyboard: layout and size are remembered separately for portrait and landscape.
     private fun o(landscape: Boolean) = if (landscape) "L" else "P"
 
-    /** Default: Full everywhere; in portrait on phones it is kept short (see KeyboardArea) with a trackpad above. */
+    /**
+     * Default: Laptop (five rows, F-keys on Fn) everywhere; in portrait on phones it is kept short (see
+     * KeyboardArea) with a trackpad above.
+     */
     fun kbLayout(landscape: Boolean): KbLayout =
-        KbLayout.from(p.getString("kbLayout_${o(landscape)}", null), KbLayout.FULL)
+        KbLayout.from(p.getString("kbLayout_${o(landscape)}", null), KbLayout.LAPTOP)
 
     /** Dim to outline (AOD) mode after this many seconds without touching the screen; 0 = never. */
     var idleAodSeconds: Int
@@ -160,9 +163,24 @@ object Settings {
         get() = bool("nativeTouchpad", false)
         set(v) = putBool("nativeTouchpad", v)
 
+    /** N-key rollover keyboard report (changes the HID descriptor: computers must re-pair). */
+    var nkro: Boolean
+        get() = bool("nkro", false)
+        set(v) = putBool("nkro", v)
+
     var kbPreview: Boolean
         get() = bool("kbPreview", true)
         set(v) = putBool("kbPreview", v)
+
+    /** Flick up on a key to type its shifted character (Windows touch keyboard style). */
+    var kbFlick: Boolean
+        get() = bool("kbFlick", true)
+        set(v) = putBool("kbFlick", v)
+
+    /** Drag on the space bar to move the cursor with arrow keys. */
+    var kbSpaceCursor: Boolean
+        get() = bool("kbSpaceCursor", true)
+        set(v) = putBool("kbSpaceCursor", v)
 
     var remoteProfile: RemoteProfile
         get() {

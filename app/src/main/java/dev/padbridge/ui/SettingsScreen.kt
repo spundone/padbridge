@@ -180,6 +180,9 @@ fun SettingsScreen(
                     item { SectionHeader("Native touchpad (beta)") }
                     item { NativeTouchpadSetting(hid) }
 
+                    item { SectionHeader("Keyboard rollover") }
+                    item { NkroSetting() }
+
                     item { SectionHeader("Three-finger drag") }
                     item {
                         SwitchRow("Drag with three fingers", "Move windows and select text without clicking. Turns off three-finger swipes.",
@@ -635,6 +638,36 @@ private fun NativeTouchpadSetting(hid: HidUi) {
     ) { Text("Native touchpad for Windows and Linux") }
 }
 
+
+/** Opt-in N-key rollover: any number of keys at once instead of six. Re-registers the descriptor. */
+@Composable
+private fun NkroSetting() {
+    var on by remember { mutableStateOf(Settings.nkro) }
+    var changed by remember { mutableStateOf(false) }
+    fun set(v: Boolean) { on = v; Settings.nkro = v; changed = true; HidManager.reRegister() }
+    SegmentedListItem(
+        onClick = { set(!on) },
+        shapes = ListItemDefaults.segmentedShapes(0, 1),
+        colors = segColors(),
+        supportingContent = {
+            Column {
+                Text(
+                    "A normal Bluetooth keyboard can report 6 keys held at once. N-key rollover reports every key, " +
+                        "so big chords and games never drop one. Works on Windows, macOS, Linux, Android and iPad; " +
+                        "some TVs only understand 6-key keyboards."
+                )
+                Text(
+                    if (changed) "Remove this phone on the computer and pair it again so it sees the change."
+                    else if (on) "On." else "Off. Needs a one-time re-pair after turning on.",
+                    color = if (changed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        },
+        trailingContent = { Switch(checked = on, onCheckedChange = { set(it) }) },
+    ) { Text("N-key rollover (any number of keys)") }
+}
 
 /** Settings are grouped into short pages instead of one long scroll. */
 enum class SettingsPage(

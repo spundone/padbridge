@@ -3,6 +3,7 @@ package dev.padbridge
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
@@ -14,12 +15,21 @@ import dev.padbridge.Keys.R_ALT
 import dev.padbridge.Keys.R_CTRL
 import dev.padbridge.Keys.R_GUI
 import dev.padbridge.Keys.R_SHIFT
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.sin
 
 /** On-screen keyboard layouts. */
 /** [cols] x [rows]: the layout's size in key units, used to give keys a sensible shape. */
 enum class KbLayout(val label: String, val blurb: String, val cols: Float, val rows: Int) {
-    FULL("Full", "F-row, numbers, arrows", 15f, 6),
+    LAPTOP("Laptop", "Five rows like a laptop. Fn + number row = F1–F12, Fn + Esc = `", 15f, 5),
+    FULL("Full", "Separate F-row, numbers, arrows", 15f, 6),
+    THINKPAD("ThinkPad", "Classic ThinkPad: Fn bottom-left, PgUp/PgDn by the arrows, TrackPoint and its 3 buttons", 15f, 6),
     PHONE("Phone", "Big keys like a phone keyboard. Fn: F-keys, symbols, Home/End", 10f, 6),
     FULL_NUMPAD("Full + numpad", "Everything, with a number pad (landscape / tablets)", 19.5f, 6),
     COMPACT_65("65%", "No F-row; Del, PgUp, PgDn, End column. Fn + number = F-key", 16f, 5),
@@ -38,7 +48,7 @@ enum class KbLayout(val label: String, val blurb: String, val cols: Float, val r
  * hold while pressing another key = chord. Keys sit on a unit grid, so keys can span rows
  * (numpad + and Enter) and layouts can leave gaps (split, gaming).
  */
-class KeyboardView(ctx: Context) : View(ctx) {
+class KeyboardView(ctx: Context) : View(ctx), Routable {
 
     class Key(
         val label: String,
@@ -51,6 +61,8 @@ class KeyboardView(ctx: Context) : View(ctx) {
         val fnLabel: String? = null,
         val small: Boolean = false,
         val h: Float = 1f,
+        /** A mouse button (TrackPoint buttons): its HID button bit. */
+        val mouse: Int = 0,
     ) {
         val rect = RectF()
         var gx = 0f
@@ -74,6 +86,46 @@ class KeyboardView(ctx: Context) : View(ctx) {
     private val modHeld = HashMap<Key, Boolean>()        // finger currently on the modifier
     private val modUsed = HashSet<Key>()                 // another key was pressed while holding it
 
+    /**
+     * A character key (with [flick]) or the space bar (with [spaceCursor]) that hasn't typed yet: it types
+     * when lifted, shifted if flicked up; held still it turns into a normal held key; dragged, the space
+     * bar moves the cursor instead.
+     */
+    private inner class Pending(val k: Key, val x0: Float, val y0: Float) {
+        var flicked = false
+        var cursor = false
+        var lastX = x0
+        var lastY = y0
+        val hold = Runnable { holdTimeout(this) }
+    }
+    private val pending = HashMap<Int, Pending>()
+    private val mouseDown = HashSet<Key>()
+    private var unitW = 1f
+    private var unitH = 1f
+
+    // TrackPoint (ThinkPad layout): a pointing stick between G, H and B. Push it and the pointer moves at a
+    // speed set by how far you push; hold the middle button to scroll with it instead.
+    private var nubGx = -1f
+    private var nubGy = -1f
+    private val nubC = PointF()
+    private var nubR = 0f
+    private var nubId = -1
+    private val nubOrigin = PointF()
+    private val nubAt = PointF()
+    private var nubDown = 0L
+    private var nubMax = 0f
+    private var nubLast = 0L
+    private var middleHeld = false
+    private var middleScrolled = false
+    private val nubPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val nubLoop = object : Runnable {
+        override fun run() {
+            if (nubId < 0) return
+            nubStep()
+            postOnAnimation(this)
+        }
+    }
+
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = C.TEXT }
     private val subPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = C.MUTED }
@@ -87,7 +139,12 @@ class KeyboardView(ctx: Context) : View(ctx) {
 
     init { isHapticFeedbackEnabled = false }
 
-    fun setOs(o: HostOs) = configure(o, layout ?: KbLayout.FULL, splitGap)
+    /** Flick up on a key to type its shifted character. Keys with a flick type when lifted (or when held). */
+    var flick = true
+    /** Drag on the space bar to send arrow keys. */
+    var spaceCursor = true
+
+    fun setOs(o: HostOs) = configure(o, layout ?: KbLayout.LAPTOP, splitGap)
 
     fun configure(o: HostOs, l: KbLayout, gap: Float = splitGap) {
         if (o == os && l == layout && gap == splitGap) return
@@ -117,6 +174,7 @@ class KeyboardView(ctx: Context) : View(ctx) {
 
     private fun build(o: HostOs, l: KbLayout) {
         val mac = o == HostOs.MAC
+        nubGx = -1f; nubGy = -1f
         fun lt(c: Char, w: Float = 1f) = Key(c.toString(), Keys.letter(c), w, c.uppercase())
         fun s(lbl: String, shift: String, code: Int, w: Float = 1f, fnCode: Int = 0, fnLabel: String? = null) =
             Key(lbl, code, w, shift, fnCode = fnCode, fnLabel = fnLabel)
@@ -189,6 +247,54 @@ class KeyboardView(ctx: Context) : View(ctx) {
                 g.row(4f, 0f, listOf(lshift(1.5f)) + letters("zxcvbnm") + bksp(1.5f))
                 g.row(5f, 0f, listOf(fnKey(1.5f), s(",", "<", Keys.COMMA), space(4f), s(".", ">", Keys.PERIOD),
                     s("/", "?", Keys.SLASH), enter(1.5f)))
+            }
+            KbLayout.LAPTOP -> {
+                // Like Windows' "traditional" touch keyboard: no separate F-row, so five taller rows.
+                g.row(0f, 0f, listOf(esc(grave = true)) + (0..9).map { digit(it) } + minus() + equal() + bksp())
+                g.row(1f, 0f, listOf(tab()) + letters("qwertyuiop") +
+                    s("[", "{", Keys.LBRACKET) + s("]", "}", Keys.RBRACKET) + s("\\", "|", Keys.BACKSLASH, 1.5f))
+                g.row(2f, 0f, listOf(caps()) + letters("asdfghjkl") + s(";", ":", Keys.SEMICOLON) + s("'", "\"", Keys.QUOTE) + enter())
+                g.row(3f, 0f, listOf(lshift()) + letters("zxcvbnm") +
+                    s(",", "<", Keys.COMMA) + s(".", ">", Keys.PERIOD) + s("/", "?", Keys.SLASH) + rshift())
+                val arrows = listOf(left(), up(), down(), right())
+                g.row(4f, 0f, if (mac) listOf(fnKey(), ctrl(), alt(), gui(w = 1.5f), space(3.5f), gui(true, 1.5f), alt(true, 1f)) + arrows
+                else listOf(ctrl(), gui(), alt(), space(4.25f), alt(true, 1f), fnKey(), ctrl(true, 1f)) + arrows)
+            }
+            KbLayout.THINKPAD -> {
+                // Low F-row with Home/End/Ins/Del, Fn bottom-left, PrtSc between Alt and Ctrl, half-height arrows
+                // with PgUp/PgDn beside Up, a red TrackPoint between G, H and B and its three buttons below.
+                val fw = 15f / 17f
+                val fh = 0.7f
+                fun f(lbl: String, code: Int) = Key(lbl, code, fw, small = true, h = fh)
+                g.row(0f, 0f, listOf(f(if (mac) "esc" else "Esc", Keys.ESC)) + (1..12).map { f("F$it", Keys.f(it)) } +
+                    f("Home", Keys.HOME) + f("End", Keys.END) + f("Ins", Keys.INSERT) + f(if (mac) "⌦" else "Del", Keys.DELETE))
+                val y = fh
+                g.row(y, 0f, listOf(s("`", "~", Keys.GRAVE)) + (0..9).map { digit(it) } + minus() + equal() + bksp())
+                g.row(y + 1, 0f, listOf(tab()) + letters("qwertyuiop") +
+                    s("[", "{", Keys.LBRACKET) + s("]", "}", Keys.RBRACKET) + s("\\", "|", Keys.BACKSLASH, 1.5f))
+                g.row(y + 2, 0f, listOf(caps()) + letters("asdfghjkl") + s(";", ":", Keys.SEMICOLON) + s("'", "\"", Keys.QUOTE) + enter())
+                g.row(y + 3, 0f, listOf(lshift()) + letters("zxcvbnm") +
+                    s(",", "<", Keys.COMMA) + s(".", ">", Keys.PERIOD) + s("/", "?", Keys.SLASH) + rshift())
+                g.row(y + 4, 0f, listOf(fnKey(), ctrl(w = 1.25f), gui(w = 1f), alt(w = 1.25f), space(5f), alt(true, 1f),
+                    sm("PrtSc", Keys.PRINT_SCREEN), ctrl(true, 1f)))
+                val aw = 2.5f / 3f
+                g.row(y + 4, 12.5f, listOf(
+                    Key("PgUp", Keys.PAGE_UP, aw, small = true, h = 0.5f),
+                    Key("↑", Keys.UP, aw, h = 0.5f, fnCode = Keys.PAGE_UP, fnLabel = "PgUp"),
+                    Key("PgDn", Keys.PAGE_DOWN, aw, small = true, h = 0.5f),
+                ))
+                g.row(y + 4.5f, 12.5f, listOf(
+                    Key("←", Keys.LEFT, aw, h = 0.5f, fnCode = Keys.HOME, fnLabel = "Home"),
+                    Key("↓", Keys.DOWN, aw, h = 0.5f, fnCode = Keys.PAGE_DOWN, fnLabel = "PgDn"),
+                    Key("→", Keys.RIGHT, aw, h = 0.5f, fnCode = Keys.END, fnLabel = "End"),
+                ))
+                // TrackPoint buttons centred under the stick.
+                g.row(y + 5.1f, 4.75f, listOf(
+                    Key("", w = 1.5f, h = 0.55f, small = true, mouse = TrackpadView.BTN_LEFT),
+                    Key("", w = 1f, h = 0.55f, small = true, mouse = TrackpadView.BTN_MIDDLE),
+                    Key("", w = 1.5f, h = 0.55f, small = true, mouse = TrackpadView.BTN_RIGHT),
+                ))
+                nubGx = 6.75f; nubGy = y + 3
             }
             KbLayout.FULL, KbLayout.FULL_NUMPAD -> {
                 g.row(0f, 0f, listOf(esc()) + (1..12).map { sm("F$it", Keys.f(it)) } +
@@ -278,13 +384,17 @@ class KeyboardView(ctx: Context) : View(ctx) {
     private fun layoutKeys() {
         if (width == 0 || keys.isEmpty()) return
         val gap = 4 * density
-        val unitW = (width - gap) / gridW
-        val unitH = (height - gap) / gridH
+        unitW = (width - gap) / gridW
+        unitH = (height - gap) / gridH
         for (k in keys) {
             k.rect.set(
                 gap + k.gx * unitW, gap + k.gy * unitH,
                 (k.gx + k.w) * unitW, (k.gy + k.h) * unitH,
             )
+        }
+        if (nubGx >= 0) {
+            nubC.set(gap / 2 + nubGx * unitW, gap / 2 + nubGy * unitH)
+            nubR = minOf(unitW, unitH) * 0.2f
         }
         val ref = minOf(unitH, unitW * 1.1f)
         labelPaint.textSize = (ref * 0.38f).coerceAtMost(22 * density)
@@ -358,37 +468,200 @@ class KeyboardView(ctx: Context) : View(ctx) {
     }
 
     fun releaseEverything() {
-        pointerKeys.clear(); heldCodes.clear(); modState.clear(); modHeld.clear(); modUsed.clear()
+        pending.values.forEach { removeCallbacks(it.hold) }; pending.clear()
+        if (nubId >= 0) { nubId = -1; removeCallbacks(nubLoop) }
+        if (middleHeld) middleHeld = false
+        for (k in pointerKeys.values) if (k.mouse != 0 && k.mouse != TrackpadView.BTN_MIDDLE) HidManager.setButton(k.mouse, false)
+        mouseDown.clear(); pointerKeys.clear(); heldCodes.clear(); modState.clear(); modHeld.clear(); modUsed.clear()
         HidManager.setKeyboardState(0, emptyList())
         invalidate()
     }
 
-    override fun onTouchEvent(e: MotionEvent): Boolean {
+    override fun onTouchEvent(e: MotionEvent): Boolean = TouchRouter.route(this, e)
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        TouchRouter.register(this)
+    }
+
+    /** Flick and the space-bar cursor are off where held keys matter more than typing (games, numpad). */
+    private val typingLayout get() = layout != KbLayout.GAMING && layout != KbLayout.NUMPAD
+
+    private fun defers(k: Key) = typingLayout && k.mouse == 0 && !k.isModifier &&
+        ((k.code == Keys.SPACE && spaceCursor) || (flick && k.code != Keys.SPACE && k.shiftLabel != null))
+
+    private fun nubHit(x: Float, y: Float) = nubGx >= 0 && hypot(x - nubC.x, y - nubC.y) <= nubR * 2.2f
+
+    override fun handleTouch(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
                 val i = e.actionIndex
+                val pid = e.getPointerId(i)
+                // Compose passes the whole MotionEvent: a finger that went down on the trackpad isn't ours.
+                val x = e.getX(i); val y = e.getY(i)
+                if (x < 0f || y < 0f || x > width || y > height) return true
                 // The heel of a hand resting on the keys doesn't type.
                 if (Settings.palmRejection && Typing.isPalm(e, i, resources.displayMetrics.ydpi)) return true
-                keyAt(e.getX(i), e.getY(i))?.let { k ->
-                    pointerKeys[e.getPointerId(i)] = k
+                if (nubId < 0 && nubHit(x, y)) {
+                    nubId = pid; nubOrigin.set(x, y); nubAt.set(x, y); nubDown = e.eventTime; nubMax = 0f
+                    nubLast = System.nanoTime()
+                    HidManager.resetScroll()
+                    postOnAnimation(nubLoop)
+                    invalidate(); return true
+                }
+                val k = keyAt(x, y) ?: return true
+                if (k.mouse != 0) {
+                    pointerKeys[pid] = k
+                    if (k.mouse == TrackpadView.BTN_MIDDLE) { middleHeld = true; middleScrolled = false }
+                    else HidManager.setButton(k.mouse, true)
+                    mouseDown += k
+                    Haptics.tick(); invalidate(); return true
+                }
+                // A new key types whatever is still waiting first, so fast rollover keeps its order.
+                if (!k.isModifier) flushPending()
+                if (defers(k)) {
+                    val p = Pending(k, x, y)
+                    pending[pid] = p
+                    if (k.code != Keys.SPACE) postDelayed(p.hold, HOLD_MS)
+                    Typing.keyPressed()
+                    Haptics.tick()
+                } else {
+                    pointerKeys[pid] = k
                     press(k)
                 }
             }
+            MotionEvent.ACTION_MOVE -> for (i in 0 until e.pointerCount) {
+                val pid = e.getPointerId(i)
+                if (pid == nubId) { nubAt.set(e.getX(i), e.getY(i)); continue }
+                val p = pending[pid] ?: continue
+                movePending(p, e.getX(i), e.getY(i))
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                pointerKeys.remove(e.getPointerId(e.actionIndex))?.let { release(it) }
+                val pid = e.getPointerId(e.actionIndex)
+                if (pid == nubId) nubUp(e.eventTime)
+                pending.remove(pid)?.let { commit(it) }
+                pointerKeys.remove(pid)?.let { k -> if (k.mouse != 0) mouseUp(k) else release(k) }
             }
             MotionEvent.ACTION_CANCEL -> {
-                pointerKeys.values.toList().forEach { release(it) }; pointerKeys.clear()
+                pending.values.forEach { removeCallbacks(it.hold) }; pending.clear()
+                if (nubId >= 0) { nubId = -1; removeCallbacks(nubLoop) }
+                pointerKeys.values.toList().forEach { if (it.mouse != 0) mouseUp(it) else release(it) }; pointerKeys.clear()
             }
         }
         invalidate()
         return true
     }
 
+    private fun movePending(p: Pending, x: Float, y: Float) {
+        if (p.k.code == Keys.SPACE) {
+            // Space bar cursor: once the finger has slid, every step sends an arrow key.
+            val step = max(14 * density, unitW * 0.5f)
+            if (!p.cursor && (abs(x - p.x0) > step * 0.8f || abs(y - p.y0) > step * 1.2f)) {
+                p.cursor = true; p.lastX = p.x0; p.lastY = p.y0
+            }
+            if (!p.cursor) return
+            while (x - p.lastX >= step) { p.lastX += step; arrow(Keys.RIGHT) }
+            while (p.lastX - x >= step) { p.lastX -= step; arrow(Keys.LEFT) }
+            val vstep = step * 1.6f
+            while (y - p.lastY >= vstep) { p.lastY += vstep; arrow(Keys.DOWN) }
+            while (p.lastY - y >= vstep) { p.lastY -= vstep; arrow(Keys.UP) }
+        } else {
+            val up = p.y0 - y
+            p.flicked = up > max(16 * density, unitH * 0.45f) && up > abs(x - p.x0)
+        }
+    }
+
+    private fun arrow(code: Int) {
+        tapCode(code, 0)
+    }
+
+    /** Held still: becomes an ordinary held key, so the computer's key repeat works. */
+    private fun holdTimeout(p: Pending) {
+        val pid = pending.entries.firstOrNull { it.value === p }?.key ?: return
+        if (p.flicked) return
+        pending.remove(pid)
+        pointerKeys[pid] = p.k
+        press(p.k)
+        invalidate()
+    }
+
+    private fun commit(p: Pending) {
+        removeCallbacks(p.hold)
+        if (p.cursor) return
+        val code = if (fnActive && p.k.fnCode != 0) p.k.fnCode else p.k.code
+        if (code == 0) return
+        tapCode(code, if (p.flicked) L_SHIFT else 0)
+    }
+
+    private fun flushPending() {
+        val it = pending.entries.iterator()
+        while (it.hasNext()) {
+            val p = it.next().value
+            if (p.cursor) continue
+            it.remove(); commit(p)
+        }
+    }
+
+    /** Press and release [code] with the current modifiers plus [extra]; one-shot modifiers are used up. */
+    private fun tapCode(code: Int, extra: Int) {
+        modHeld.filterValues { it }.keys.forEach { modUsed.add(it) }
+        push()
+        HidManager.tap(code, extra)
+        Typing.keyPressed()
+        if (heldCodes.isEmpty()) {
+            var changed = false
+            for (e in modState.entries) if (e.value == ModState.ONESHOT) { e.setValue(ModState.OFF); changed = true }
+            if (changed) push()
+        }
+        invalidate()
+    }
+
+    private fun mouseUp(k: Key) {
+        mouseDown.remove(k)
+        if (k.mouse == TrackpadView.BTN_MIDDLE) {
+            middleHeld = false
+            if (!middleScrolled) HidManager.click(TrackpadView.BTN_MIDDLE)
+        } else HidManager.setButton(k.mouse, false)
+    }
+
+    /** One frame of TrackPoint motion: speed grows faster than linearly with how far the finger pushed. */
+    private fun nubStep() {
+        val now = System.nanoTime()
+        val dt = ((now - nubLast) / 1e9f).coerceIn(0f, 0.05f)
+        nubLast = now
+        val dx = nubAt.x - nubOrigin.x; val dy = nubAt.y - nubOrigin.y
+        val d = hypot(dx, dy) / density
+        nubMax = max(nubMax, d)
+        val push = d - NUB_DEAD_DP
+        if (push <= 0f || d == 0f) return
+        if (middleHeld) {
+            middleScrolled = true
+            val rate = 0.35f * push.pow(1.3f) // notches per second
+            HidManager.scroll(-dy / (d * density) * rate * dt, dx / (d * density) * rate * dt)
+        } else {
+            val speed = 16f * push.pow(1.5f) * Settings.pointerSpeed // counts per second
+            HidManager.move(dx / (d * density) * speed * dt, dy / (d * density) * speed * dt)
+        }
+    }
+
+    private fun nubUp(t: Long) {
+        nubId = -1
+        removeCallbacks(nubLoop)
+        // A quick tap on the stick clicks, like ThinkPad's press-to-select.
+        if (t - nubDown < 180 && nubMax < 4f && !middleHeld) HidManager.click(TrackpadView.BTN_LEFT)
+    }
+
     override fun onDetachedFromWindow() {
+        TouchRouter.unregister(this)
         releaseEverything()
         super.onDetachedFromWindow()
+    }
+
+    private companion object {
+        const val HOLD_MS = 380L
+        const val NUB_DEAD_DP = 1.5f
+        const val NUB_RED = 0xFFE2231A.toInt()
     }
 
     // ------------------------------------------------------------------ drawing
@@ -409,7 +682,7 @@ class KeyboardView(ctx: Context) : View(ctx) {
         val caps = HidManager.leds and 0x02 != 0
         val fn = fnActive
         for (k in keys) {
-            val pressed = heldCodes.containsKey(k) || modHeld[k] == true
+            val pressed = heldCodes.containsKey(k) || modHeld[k] == true || pending.values.any { it.k === k } || k in mouseDown
             val st = modState[k] ?: ModState.OFF
             val lit = pressed || st != ModState.OFF
             keyPaint.fillOrOutline(
@@ -441,16 +714,37 @@ class KeyboardView(ctx: Context) : View(ctx) {
                 subPaint.color = C.MUTED
                 c.drawText(k.shiftLabel, k.rect.centerX(), k.rect.top + subPaint.textSize + 2 * density, subPaint)
             }
+            if (k.mouse != 0) {
+                // TrackPoint buttons: ThinkPad's red stripes on left and right.
+                if (k.mouse != TrackpadView.BTN_MIDDLE) {
+                    nubPaint.color = NUB_RED
+                    c.drawRect(k.rect.left + 6 * density, k.rect.top + 3 * density, k.rect.right - 6 * density,
+                        k.rect.top + 5 * density, nubPaint)
+                }
+            }
             if (k.code == Keys.CAPS) {
                 ledPaint.color = if (caps) C.OK else C.STROKE
                 c.drawCircle(k.rect.left + 8 * density, k.rect.top + 8 * density, 3 * density, ledPaint)
             }
         }
 
-        // Preview bubbles for held character keys, drawn above the finger.
-        if (keyPreview) for (k in heldCodes.keys) {
-            if (k.small || k.code == Keys.SPACE) continue
-            val label = labelFor(k, shift, caps, fn)
+        // TrackPoint, drawn over the corners of G, H and B; it leans the way it's pushed.
+        if (nubGx >= 0) {
+            val lean = if (nubId >= 0) min(1f, hypot(nubAt.x - nubOrigin.x, nubAt.y - nubOrigin.y) / (24 * density)) else 0f
+            val ang = atan2(nubAt.y - nubOrigin.y, nubAt.x - nubOrigin.x)
+            val cx = nubC.x + cos(ang) * lean * nubR * 0.6f
+            val cy = nubC.y + sin(ang) * lean * nubR * 0.6f
+            nubPaint.color = if (C.AOD) C.BG else C.SURFACE
+            c.drawCircle(nubC.x, nubC.y, nubR * 1.35f, nubPaint)
+            nubPaint.color = if (C.AOD) C.ACCENT else NUB_RED
+            c.drawCircle(cx, cy, nubR * (if (nubId >= 0) 1.1f else 1f), nubPaint)
+        }
+
+        // Preview bubbles for held (and waiting) character keys, drawn above the finger.
+        val bubbles = heldCodes.keys.map { it to false } + pending.values.filter { !it.cursor }.map { it.k to it.flicked }
+        if (keyPreview) for ((k, flicked) in bubbles) {
+            if (k.small || k.code == Keys.SPACE || k.mouse != 0) continue
+            val label = labelFor(k, shift || flicked, caps, fn)
             val w = max(k.rect.width() * 1.3f, bubbleText.measureText(label) + 24 * density)
             val h = k.rect.height() * 1.15f
             var top = k.rect.top - h - 6 * density
