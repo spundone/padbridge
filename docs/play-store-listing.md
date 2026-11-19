@@ -183,4 +183,6 @@ Haptic feedback for clicks, key presses and gamepad buttons. Can be turned off i
 - Upload with an upload key; enroll in Play App Signing. Never upload a build signed with the shared dev key.
 - Screenshots: see [screenshots/README.md](screenshots/README.md).
 - Store-ready assets and text live in `fastlane/metadata/android/en-US/` (fastlane supply layout): icon 512², feature
-  graphic 1024×500, seven phone screenshots, title, descriptions and per-versionCode changelogs.
+  graphic 1024×500, seven phone screenshots, three 7-inch and three 10-inch tablet screenshots, title, descriptions
+  and per-versionCode changelogs. `scripts/play_images.py` renders the captioned images from raw demo-mode captures
+  (`scripts/screenshots.sh`).

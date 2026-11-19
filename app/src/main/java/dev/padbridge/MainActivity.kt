@@ -195,6 +195,8 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
         volumeKey(keyCode, event, false) || super.onKeyUp(keyCode, event)
 
     fun versionName(): String = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+        (packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
+            // Screenshot demo (debug only): show the version as users see it.
+            .let { if (HidManager.demo) it.removeSuffix("-dev") else it }
     } catch (_: Exception) { "?" }
 }
