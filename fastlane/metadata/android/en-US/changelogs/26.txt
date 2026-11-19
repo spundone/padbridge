@@ -1,0 +1,2 @@
+• Keyboard: switch between Windows, macOS and Linux keys right from the layout sheet.
+• Tablets: resize the laptop keyboard on screen (corner grips for width, the bar for height), plus a height slider.

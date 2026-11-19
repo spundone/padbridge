@@ -7,7 +7,7 @@ All notable changes to PadBridge are documented here. The format is based on
 Versions before 0.8.0 were private test builds. Their history is reconstructed, grouped by minor version, and
 undated.
 
-## [Unreleased]
+## [1.3.1] – 2026-11-19
 
 ### Added
 - Keyboard layout sheet: a **Windows / macOS / Linux** switch at the top, so you can change the keys, labels and
