@@ -9,6 +9,22 @@ undated.
 
 ## [Unreleased]
 
+## [1.5.0] – 2026-11-20
+
+### Added
+- **Control this phone** (GitHub build, Connect › Without Bluetooth): no Bluetooth needed. The trackpad, keyboard
+  and remote drive this phone, or the external display it's showing (desktop mode, Samsung DeX, an extended
+  display), with a pointer drawn on that display. With root it sends real mouse and keyboard events (hover, right
+  click, every shortcut); without root the "PadBridge: control this phone" accessibility service turns clicks,
+  drags and scrolling into touches and types into the focused field (Esc = Back, Windows / Command = Home,
+  Alt / Cmd + Tab = Recents, Ctrl / Cmd + A, C, X, V). Media and volume keys control this phone. You can pick the
+  display.
+- **Floating trackpad** (GitHub build): a small trackpad over other apps; drag the bar to move it, the corner to
+  resize, the dash to fold it into a bubble. It drives the Bluetooth computer or, in Control this phone, this phone.
+
+### Fixed
+- Auto AOD no longer dims the screen while you type with the phone keyboard (Gboard).
+
 ## [1.4.0] – 2026-11-20
 
 ### Added

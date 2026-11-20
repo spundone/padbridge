@@ -111,6 +111,7 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
 
     private fun typeOut(s: String) {
         if (s.isEmpty()) return
+        Idle.touched() // typing on the phone keyboard is activity too (its taps don't reach our window)
         val skipped = HidManager.type(s)
         if (skipped > 0) onSkipped?.invoke(skipped)
         echoAppend(s)
@@ -118,6 +119,7 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
 
     private fun backspace(n: Int) {
         if (n <= 0) return
+        Idle.touched()
         HidManager.backspace(n)
         echoBackspace(n)
     }
@@ -148,6 +150,7 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
         if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_VOLUME_UP ||
             code == KeyEvent.KEYCODE_VOLUME_DOWN
         ) return false
+        Idle.touched()
         val mods = Keys.modsFromAndroidMeta(e.metaState)
         when (code) {
             KeyEvent.KEYCODE_DEL -> { HidManager.tap(Keys.BACKSPACE, mods); echoBackspace(1); return true }
@@ -181,6 +184,7 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
         override fun getEditable(): android.text.Editable = buffer
 
         private fun changed(r: Boolean): Boolean {
+            Idle.touched()
             val sel = android.text.Selection.getSelectionEnd(buffer).let { if (it < 0) buffer.length else it }
             val selStart = android.text.Selection.getSelectionStart(buffer).let { if (it < 0) sel else it }
             imm.updateSelection(this@ImeCaptureView, selStart, sel, getComposingSpanStart(buffer), getComposingSpanEnd(buffer))

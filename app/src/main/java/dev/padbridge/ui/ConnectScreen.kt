@@ -219,13 +219,20 @@ fun ConnectScreen(
             )
         }
     }
+    // GitHub build: drive this phone itself (external display, DeX) without Bluetooth, plus the floating trackpad.
+    val localItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+        if (dev.padbridge.BuildConfig.ROOT_FEATURES) {
+            item { SectionHeader("Without Bluetooth") }
+            item { LocalControlCard() }
+        }
+    }
     val listArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         if (maxWidth >= 840.dp) {
             // Tablet / unfolded: status and computer type on the left, computers and pairing on the right.
             Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 LazyColumn(Modifier.weight(0.45f).fillMaxHeight(), contentPadding = ScreenPadding, verticalArrangement = listArrangement) {
-                    heroItems(); osItems(); item { Gap(24) }
+                    heroItems(); osItems(); localItems(); item { Gap(24) }
                 }
                 LazyColumn(Modifier.weight(0.55f).fillMaxHeight(), contentPadding = ScreenPadding, verticalArrangement = listArrangement) {
                     hostItems(); item { Gap(24) }
@@ -233,7 +240,7 @@ fun ConnectScreen(
             }
         } else {
             LazyColumn(contentPadding = ScreenPadding, verticalArrangement = listArrangement, modifier = Modifier.fillMaxWidth()) {
-                heroItems(); hostItems(); osItems(); item { Gap(24) }
+                heroItems(); hostItems(); osItems(); localItems(); item { Gap(24) }
             }
         }
     }

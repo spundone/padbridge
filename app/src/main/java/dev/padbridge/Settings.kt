@@ -385,6 +385,35 @@ object Settings {
         set(v) = putBool("showAll", v)
 
     /** Trackpad, keyboard and air mouse hide the app bars and system bars. */
+    /** Floating trackpad window: size in dp and position in px (-1 / 0 = default). */
+    var floatW: Int
+        get() = p.getInt("floatW", 0)
+        set(v) = p.edit().putInt("floatW", v).apply()
+    var floatH: Int
+        get() = p.getInt("floatH", 0)
+        set(v) = p.edit().putInt("floatH", v).apply()
+    var floatX: Int
+        get() = p.getInt("floatX", -1)
+        set(v) = p.edit().putInt("floatX", v).apply()
+    var floatY: Int
+        get() = p.getInt("floatY", -1)
+        set(v) = p.edit().putInt("floatY", v).apply()
+
+    /** "Control this phone" (no Bluetooth) is on. */
+    var localControl: Boolean
+        get() = bool("localControl", false)
+        set(v) = putBool("localControl", v)
+
+    /** Use root (real mouse and key events) for local control when available. */
+    var localUseRoot: Boolean
+        get() = bool("localUseRoot", true)
+        set(v) = putBool("localUseRoot", v)
+
+    /** Display to control: a display id, or -1 for "external if there is one". */
+    var localDisplay: Int
+        get() = p.getInt("localDisplay", -1)
+        set(v) = p.edit().putInt("localDisplay", v).apply()
+
     /** Turn on Do Not Disturb (priority only) while the app bars are hidden. */
     var fullscreenDnd: Boolean
         get() = bool("fullscreenDnd", false)

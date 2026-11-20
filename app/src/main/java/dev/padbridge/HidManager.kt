@@ -60,7 +60,7 @@ object HidManager {
     private val ioExecutor = Executor { io.post(it) }
     private val main = Handler(Looper.getMainLooper())
 
-    private fun notifyChanged() = main.post { listeners.forEach { it.onHidChanged() } }
+    fun notifyChanged() = main.post { listeners.forEach { it.onHidChanged() } }
 
     private fun setState(s: State, d: String = "") {
         if (demo && s != State.CONNECTED) return // screenshot demo: stay "connected"
@@ -750,7 +750,7 @@ object HidManager {
 
     // ------------------------------------------------------------------ report state (io thread only)
 
-    @Volatile private var hiResPan = false
+    @Volatile var hiResPan = false; private set
     private var mouseButtons = 0
     private var accX = 0f
     private var accY = 0f
@@ -776,7 +776,7 @@ object HidManager {
     @Volatile private var ptpSwitches = 0x03
 
     /** True when the computer is taking raw touches and doing gestures itself (Windows PTP / Linux multitouch). */
-    val ptpActive get() = ptpRegistered && ptpInputMode == 3 && isConnected
+    val ptpActive get() = ptpRegistered && ptpInputMode == 3 && isConnected && !Local.active
 
     data class Contact(val id: Int, val x: Int, val y: Int, val tip: Boolean)
 
@@ -804,6 +804,8 @@ object HidManager {
     }
 
     private fun send(id: Int, data: ByteArray) {
+        // "Control this phone": the report drives this phone (or its external display) instead of Bluetooth.
+        if (Local.active) { Local.onReport(id, data); return }
         val h = hid ?: return
         val d = host ?: return
         try { h.sendReport(d, id, data) } catch (e: Exception) { Log.w(TAG, "sendReport", e) }

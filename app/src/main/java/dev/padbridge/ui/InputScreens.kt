@@ -286,6 +286,9 @@ fun TrackpadScreen(
         MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
             if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
         MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
+    ) + (if (dev.padbridge.BuildConfig.ROOT_FEATURES) listOf(
+        MenuEntry("Floating trackpad over other apps", Icons.Rounded.OpenInFull) { dev.padbridge.FloatingPadService.start(ctx) },
+    ) else emptyList()) + listOf(
         MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
         MenuEntry("Auto-rotate", Icons.Rounded.ScreenRotation, checked = orientation == 0, divider = true) {
             orientation = 0; Settings.trackpadOrientation = 0

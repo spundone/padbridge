@@ -1,5 +1,6 @@
 package dev.padbridge.ui
 
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -77,15 +78,18 @@ data class HidUi(
     val discovering: Boolean = false,
     val foundCount: Int = 0,
     val hostRefused: Boolean = false,
+    /** Controlling this phone (no Bluetooth): counts as connected, so every input screen works. */
+    val local: Boolean = false,
 ) {
-    val connected get() = state == HidManager.State.CONNECTED
+    val connected get() = state == HidManager.State.CONNECTED || local
 
     companion object {
         fun capture(version: Int) = HidUi(
             version, HidManager.state, HidManager.detail,
-            HidManager.host?.let { HidManager.name(it) }, HidManager.host?.address,
+            if (dev.padbridge.Local.active) "This phone · ${dev.padbridge.Local.displayName ?: "screen"}"
+            else HidManager.host?.let { HidManager.name(it) }, HidManager.host?.address,
             HidManager.connectingTo?.address, HidManager.leds, HidManager.needsBluetoothRestart,
-            HidManager.discovering, HidManager.found.size, HidManager.hostRefused,
+            HidManager.discovering, HidManager.found.size, HidManager.hostRefused, dev.padbridge.Local.active,
         )
     }
 }
@@ -127,9 +131,12 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     // while connected. A touch wakes it up again; AOD turned on by hand stays on.
     var autoAodAt by remember { mutableStateOf(0L) }
     val aodCapable = !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
-    LaunchedEffect(aodCapable, aod, hid.connected, settingsOpen) {
+    // While the phone keyboard (Gboard) is up you're typing, even if nothing touches PadBridge's own window.
+    val imeUp = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+    LaunchedEffect(imeUp) { dev.padbridge.Idle.touched() }
+    LaunchedEffect(aodCapable, aod, hid.connected, settingsOpen, imeUp) {
         val secs = Settings.idleAodSeconds
-        if (!aodCapable || aod || !hid.connected || secs <= 0) return@LaunchedEffect
+        if (!aodCapable || aod || !hid.connected || secs <= 0 || imeUp) return@LaunchedEffect
         while (true) {
             val left = dev.padbridge.Idle.lastInput + secs * 1000L - android.os.SystemClock.uptimeMillis()
             if (left <= 0) { autoAodAt = android.os.SystemClock.uptimeMillis(); aod = true; break }
@@ -344,13 +351,16 @@ val LocalTopBarStatus = androidx.compose.runtime.staticCompositionLocalOf { fals
 @Composable
 fun StatusPill(hid: HidUi, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    val (bg, fg) = when (hid.state) {
+    val (bg, fg) = when {
+        hid.local -> cs.primaryContainer to cs.onPrimaryContainer
+        else -> when (hid.state) {
         HidManager.State.CONNECTED -> cs.primaryContainer to cs.onPrimaryContainer
         HidManager.State.CONNECTING, HidManager.State.REGISTERING -> cs.tertiaryContainer to cs.onTertiaryContainer
         HidManager.State.READY -> cs.surfaceContainerHigh to cs.onSurfaceVariant
         else -> cs.errorContainer to cs.onErrorContainer
+        }
     }
-    val text = when (hid.state) {
+    val text = if (hid.local) hid.hostName ?: "This phone" else when (hid.state) {
         HidManager.State.CONNECTED -> hid.hostName ?: "Connected"
         HidManager.State.CONNECTING -> "Connecting"
         HidManager.State.REGISTERING -> "Starting"

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_a11y_label">PadBridge: control this phone</string>
+    <string name="local_a11y_summary">Use PadBridge\'s trackpad and keyboard on this phone or its external display, without Bluetooth.</string>
+    <string name="local_a11y_description">Lets PadBridge\'s trackpad move a pointer on this phone\'s screen or its external display (desktop mode, DeX) and tap, drag and scroll where it points, and lets the keyboard type into the text field that has focus. PadBridge only acts when you use its trackpad or keyboard with "Control this phone" switched on. It doesn\'t collect, store or send anything it can see on screen.</string>
+</resources>

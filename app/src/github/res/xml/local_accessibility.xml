@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Control this phone": performs gestures at PadBridge's cursor and edits the focused text field.
+     It doesn't read the screen for anything else and keeps nothing. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="200"
+    android:description="@string/local_a11y_description"
+    android:summary="@string/local_a11y_summary" />

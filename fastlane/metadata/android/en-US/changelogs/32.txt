@@ -1,0 +1,3 @@
+New: Control this phone without Bluetooth (GitHub build). The trackpad and keyboard drive this phone or its external display (DeX, desktop mode), with a pointer. Root gives a real mouse and keyboard; otherwise an accessibility service taps, drags, scrolls and types.
+New: floating trackpad over other apps, foldable into a bubble.
+Fixed: auto AOD no longer dims while you type with Gboard.
