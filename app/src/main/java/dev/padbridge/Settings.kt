@@ -227,7 +227,7 @@ object Settings {
         get() = bool("remoteVolKeys", true)
         set(v) = putBool("remoteVolKeys", v)
 
-    /** 0 = follow system, 1 = light, 2 = dark, 3 = mixed (light app, dark keyboard / trackpad / gamepad). */
+    /** 0 = follow system, 1 = light, 2 = dark, 3 = realistic (follows the system; pads drawn as silver / space black hardware). */
     var themeMode: Int
         get() = p.getInt("themeMode", 0)
         set(v) = p.edit().putInt("themeMode", v).apply()

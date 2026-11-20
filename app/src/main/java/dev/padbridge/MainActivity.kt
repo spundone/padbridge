@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
     fun setGamepadMode(on: Boolean) {
         if (on == gamepadMode) return
         gamepadMode = on
-        requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        requestedOrientation = if (on) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else screenOrientation
     }
 
     private var immersive = false
@@ -208,12 +208,16 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
 
     /** 0 = follow the sensor, 1 = portrait, 2 = landscape. */
     fun setTrackpadOrientation(mode: Int) {
-        requestedOrientation = when (mode) {
+        screenOrientation = when (mode) {
             1 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             2 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
+        if (!gamepadMode) requestedOrientation = screenOrientation
     }
+
+    /** What the current screen asked for (trackpad lock, remote portrait); the gamepad's landscape overrides it. */
+    private var screenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
     /** Set by the remote screen: gets volume key presses (up?, pressed?) and returns true to consume them. */
     var volumeKeyHandler: ((up: Boolean, pressed: Boolean) -> Boolean)? = null

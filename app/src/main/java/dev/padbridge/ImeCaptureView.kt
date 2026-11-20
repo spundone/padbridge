@@ -46,6 +46,8 @@ class ImeCaptureView(ctx: Context) : View(ctx) {
     init {
         isFocusable = true
         isFocusableInTouchMode = true
+        // A capture field, not a text box: no stylus handwriting panel (it hijacked the keyboard on Android 14+).
+        if (android.os.Build.VERSION.SDK_INT >= 33) isAutoHandwritingEnabled = false
     }
 
     fun showKeyboard() {

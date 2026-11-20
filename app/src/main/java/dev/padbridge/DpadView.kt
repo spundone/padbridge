@@ -133,8 +133,11 @@ class DpadView(ctx: Context) : View(ctx) {
      * directions. A pressed direction lights a soft wedge; a swipe shows a glow under the thumb.
      */
     override fun onDraw(c: Canvas) {
-        fill.fillOrOutline(C.SURFACE2, density)
-        c.drawCircle(cx, cy, outerR, fill)
+        if (Real.active) Real.disc(c, cx, cy, outerR, density)
+        else {
+            fill.fillOrOutline(C.SURFACE2, density)
+            c.drawCircle(cx, cy, outerR, fill)
+        }
 
         for (d in Dir.entries) {
             val on = held == d || flash == d

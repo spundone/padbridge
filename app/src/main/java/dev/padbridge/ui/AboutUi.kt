@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -48,6 +49,7 @@ import dev.padbridge.BuildConfig
 const val UPI_ID = "spandan-jayanta@axisb"
 private const val DEV_NAME = "Spandan"
 private const val GITHUB_PROFILE = "https://github.com/spundone"
+private const val X_PROFILE = "https://x.com/spandu500"
 
 // ------------------------------------------------------------------ about the developer
 
@@ -62,12 +64,11 @@ fun AboutDeveloper() {
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(
-                    Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(DEV_NAME.take(1), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimary)
-                }
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(dev.padbridge.R.drawable.dev_avatar), "Photo of $DEV_NAME",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.size(56.dp).clip(CircleShape),
+                )
                 Column {
                     Text("Made by $DEV_NAME", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text("@spundone on GitHub", style = MaterialTheme.typography.bodyMedium,
@@ -80,7 +81,9 @@ fun AboutDeveloper() {
                     if (BuildConfig.DONATE) " If it's useful to you, a small donation keeps it going." else "",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 if (BuildConfig.DONATE) {
                     Button(onClick = { donate(ctx) }) {
                         Icon(Icons.Rounded.Favorite, null, Modifier.size(18.dp))
@@ -90,6 +93,10 @@ fun AboutDeveloper() {
                 OutlinedButton(onClick = { open(ctx, GITHUB_PROFILE) }) {
                     Icon(Icons.Rounded.Code, null, Modifier.size(18.dp))
                     Text("  GitHub")
+                }
+                OutlinedButton(onClick = { open(ctx, X_PROFILE) }) {
+                    Text("𝕏", fontWeight = FontWeight.Bold)
+                    Text("  @spandu500")
                 }
             }
             if (BuildConfig.DONATE) {

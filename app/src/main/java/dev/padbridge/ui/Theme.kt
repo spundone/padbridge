@@ -89,6 +89,26 @@ private fun ColorScheme.pureBlack(): ColorScheme {
     )
 }
 
+/**
+ * Realistic mode's backdrop: Apple-like neutral greys instead of the palette's tinted surfaces, so silver or space
+ * black hardware sits on a plain desk. Accent colors (primary etc.) stay the palette's.
+ */
+private fun ColorScheme.neutral(dark: Boolean): ColorScheme = if (dark) copy(
+    background = Color(0xFF000000), surface = Color(0xFF000000), surfaceDim = Color(0xFF000000),
+    surfaceBright = Color(0xFF2C2C2E), surfaceContainerLowest = Color(0xFF000000),
+    surfaceContainerLow = Color(0xFF111113), surfaceContainer = Color(0xFF1C1C1E),
+    surfaceContainerHigh = Color(0xFF2C2C2E), surfaceContainerHighest = Color(0xFF3A3A3C),
+    surfaceVariant = Color(0xFF2C2C2E), onSurface = Color(0xFFF2F2F7), onBackground = Color(0xFFF2F2F7),
+    onSurfaceVariant = Color(0xFFAEAEB2), outline = Color(0xFF8E8E93), outlineVariant = Color(0xFF3A3A3C),
+) else copy(
+    background = Color(0xFFF2F2F7), surface = Color(0xFFF2F2F7), surfaceDim = Color(0xFFDCDCE1),
+    surfaceBright = Color(0xFFFFFFFF), surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7F7FA), surfaceContainer = Color(0xFFFFFFFF),
+    surfaceContainerHigh = Color(0xFFE9E9EE), surfaceContainerHighest = Color(0xFFDCDCE1),
+    surfaceVariant = Color(0xFFE5E5EA), onSurface = Color(0xFF1D1D1F), onBackground = Color(0xFF1D1D1F),
+    onSurfaceVariant = Color(0xFF6E6E73), outline = Color(0xFF8E8E93), outlineVariant = Color(0xFFC7C7CC),
+)
+
 /** Bumped by the settings screen so theme changes apply immediately. */
 object ThemeState {
     var version by mutableIntStateOf(0)
@@ -103,10 +123,10 @@ fun PadBridgeTheme(content: @Composable () -> Unit) {
     val ctx = LocalContext.current
     val twoTone = palette == 3
     // Two-tone is light or dark by its background color, whatever the theme setting says.
-    // Mixed: a light app with the keyboard, trackpad and gamepad drawn dark, like a laptop's light body and dark keys.
-    val mixed = !twoTone && Settings.themeMode == 3
+    // Realistic: follows the system; the pads are drawn as hardware (silver or space black) on neutral greys.
+    val realistic = !twoTone && Settings.themeMode == 3
     val dark = if (twoTone) androidx.compose.ui.graphics.Color(Settings.twoToneBg).luminance() < 0.5f
-    else when (Settings.themeMode) { 1, 3 -> false; 2 -> true; else -> systemDark }
+    else when (Settings.themeMode) { 1 -> false; 2 -> true; else -> systemDark }
     fun schemeFor(d: Boolean): ColorScheme {
         val s = when {
             twoTone -> twoToneScheme(Settings.twoToneBg, Settings.twoToneFg)
@@ -117,11 +137,12 @@ fun PadBridgeTheme(content: @Composable () -> Unit) {
         }
         return if (d && !twoTone && Settings.pureBlack) s.pureBlack() else s
     }
-    val scheme = schemeFor(dark)
-    val padScheme = if (mixed) schemeFor(true) else scheme
-    syncViewColors(padScheme)
+    val scheme = schemeFor(dark).let { if (realistic) it.neutral(dark) else it }
+    dev.padbridge.Real.on = realistic
+    dev.padbridge.Real.dark = dark
+    syncViewColors(scheme)
     SideEffect {
-        syncViewColors(padScheme)
+        syncViewColors(scheme)
         // Status/navigation bar icons follow the app's mode, not just the system's.
         (ctx as? androidx.activity.ComponentActivity)?.enableEdgeToEdge(
             statusBarStyle = if (dark) androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
@@ -169,7 +190,7 @@ fun AodTheme(content: @Composable () -> Unit) {
     val outer = androidx.compose.material3.MaterialTheme.colorScheme
     applyAodViewColors()
     androidx.compose.runtime.DisposableEffect(Unit) {
-        // Recompose the outer theme too: in mixed mode the pads use the dark scheme, not [outer].
+        // Recompose the outer theme too, so the views get its colors (and Realistic's) back.
         onDispose { C.AOD = false; syncViewColors(outer); ThemeState.version++ }
     }
     androidx.compose.material3.MaterialTheme(colorScheme = AodScheme, content = content)
@@ -207,4 +228,5 @@ internal fun syncViewColors(s: ColorScheme) {
     C.TERTIARY = s.tertiary.toArgb()
     C.TEXT = s.onSurface.toArgb()
     C.MUTED = s.onSurfaceVariant.toArgb()
+    dev.padbridge.Real.applyColors()
 }

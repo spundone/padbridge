@@ -587,9 +587,10 @@ private fun AppearanceSettings() {
             colors = segColors(),
             supportingContent = {
                 Column {
-                    Choice(listOf("System", "Light", "Dark", "Mixed"), mode) { mode = it; Settings.themeMode = it; changed() }
+                    Choice(listOf("System", "Light", "Dark", "Realistic"), mode) { mode = it; Settings.themeMode = it; changed() }
                     if (mode == 3) Text(
-                        "Light app, with the keyboard, trackpad and gamepad in dark, like a laptop's dark keys.",
+                        "Drawn like real hardware: a silver aluminum keyboard and glass trackpad in light, space black in dark " +
+                            "(follows the system).",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp),
                     )
                 }

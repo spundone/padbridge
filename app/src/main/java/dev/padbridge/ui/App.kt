@@ -117,7 +117,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     val inputDest = dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE
     // AOD: the same screen as thin dim outlines on black, at minimum brightness; input keeps working.
     var aod by rememberSaveable { mutableStateOf(false) }
-    val aodActive = aod && !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
+    val aodActive = aod && !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
     // Full display: trackpad on every pixel, under the cutout, no chrome.
     var fullDisplay by rememberSaveable { mutableStateOf(false) }
     val fullDisplayActive = fullDisplay && !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.KEYBOARD)
@@ -126,7 +126,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     // Dim to AOD after a while without touching the screen (Settings › Behavior), on the screens that have it,
     // while connected. A touch wakes it up again; AOD turned on by hand stays on.
     var autoAodAt by remember { mutableStateOf(0L) }
-    val aodCapable = !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
+    val aodCapable = !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
     LaunchedEffect(aodCapable, aod, hid.connected, settingsOpen) {
         val secs = Settings.idleAodSeconds
         if (!aodCapable || aod || !hid.connected || secs <= 0) return@LaunchedEffect
@@ -143,10 +143,15 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     // The switch in Settings can change it too.
     LaunchedEffect(settingsOpen) { if (!settingsOpen) fullscreen = Settings.fullscreenInput }
 
-    LaunchedEffect(dest, settingsOpen, fullscreen, aodActive, fullDisplayActive) {
+    val landscapePhone = androidx.compose.ui.platform.LocalConfiguration.current.let {
+        it.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE && it.screenHeightDp < 520
+    }
+    LaunchedEffect(dest, settingsOpen, fullscreen, aodActive, fullDisplayActive, landscapePhone) {
         activity.setGamepadMode(dest == Dest.GAMEPAD && !settingsOpen)
         val hidden = !settingsOpen && (dest == Dest.GAMEPAD || (fullscreen && inputDest) || aodActive || fullDisplayActive)
-        activity.setBarsHidden(hidden)
+        // Phones in landscape: the trackpad also drops the system bars (the status bar ate a tenth of the height).
+        // A swipe from the edge still shows them. Do Not Disturb stays tied to the explicit full screen modes.
+        activity.setBarsHidden(hidden || (landscapePhone && dest == Dest.TRACKPAD && !settingsOpen))
         activity.setDndWanted(hidden)
     }
     // Seamless: once a computer connects while you're on the Connect tab, go straight to the trackpad.
@@ -323,7 +328,7 @@ private fun InputDest(
 ) {
     when (d) {
         Dest.TRACKPAD -> TrackpadScreen(hid, osVersion, fullscreen, onToggleFullscreen, onAod, aod, onFullDisplay, onGoConnect, onAirMouse)
-        Dest.KEYBOARD -> KeyboardScreen(hid, osVersion, fullscreen, onToggleFullscreen, onFullDisplay, onGoConnect)
+        Dest.KEYBOARD -> KeyboardScreen(hid, osVersion, fullscreen, onToggleFullscreen, onFullDisplay, onGoConnect, aod, onAod)
         Dest.AIR_MOUSE -> AirMouseScreen(fullscreen, onToggleFullscreen, onAod, aod)
         Dest.REMOTE -> RemoteScreen(hid, osVersion, aod, onAod, onGoConnect)
         else -> {}

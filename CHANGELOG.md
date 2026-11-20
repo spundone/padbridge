@@ -9,6 +9,28 @@ undated.
 
 ## [Unreleased]
 
+## [1.4.0] – 2026-11-20
+
+### Added
+- **Realistic** appearance (Settings › Appearance › Theme), replacing Mixed. The pads are drawn as hardware: in
+  light, a silver aluminum keyboard deck with white key caps that press down, a frosted-glass trackpad and a silver
+  remote with raised white buttons; in dark, the same in space black. It follows the system's light or dark mode,
+  with plain neutral greys behind. Caps Lock and latched modifiers get a small green light.
+- Incognito button (eye icon) next to the remote's text field (Android TV and the other remotes). Off, the phone keyboard
+  learns and suggests as usual; Direct typing moves to Suggest for that, still typed live.
+- AOD mode on the keyboard too: black screen, outlined keys and trackpad, a clock with the connection, dimmed
+  brightness. The moon button or Back leaves it, and the idle timer can turn it on as on the trackpad.
+
+### Changed
+- The remote stays in portrait on phones (tablets still rotate).
+- Phone landscape trackpad: the toolbar is a slim column at the side and the status bar hides (swipe from the
+  edge to see it), so the pad gets nearly the whole height instead of about two thirds.
+- "Keyboard only, edge to edge" keeps the Keyboard tab's layout: your keyboard height, the trackpad in the space
+  above it (phones in portrait), and the drag bar to resize, instead of stretching the keys over the whole screen.
+- Root mode: Controller identity now warns that it applies to the whole phone, so a computer that pairs
+  while it's set sees only a game controller (no trackpad or keyboard; on a Mac, taps open the Games app).
+- About: the developer card shows my photo and links to X (@spandu500) next to GitHub.
+
 ## [1.3.5] – 2026-11-20
 
 ### Added

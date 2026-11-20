@@ -126,6 +126,8 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         }
     }
 
+    private val deckRect = android.graphics.RectF()
+
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = C.TEXT }
     private val subPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = C.MUTED }
@@ -695,10 +697,35 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         val shift = activeMods() and (L_SHIFT or R_SHIFT) != 0
         val caps = HidManager.leds and 0x02 != 0
         val fn = fnActive
+        val real = Real.active
+        // Realistic: the keys sit in an aluminum (or space black) deck.
+        if (real) { deckRect.set(0f, 0f, width.toFloat(), height.toFloat()); Real.deck(c, deckRect, 14 * density, density) }
         for (k in keys) {
             val pressed = heldCodes.containsKey(k) || modHeld[k] == true || pending.values.any { it.k === k } || k in mouseDown
             val st = modState[k] ?: ModState.OFF
             val lit = pressed || st != ModState.OFF
+            if (real) {
+                Real.key(c, k.rect, r * 0.75f, density, pressed, k.isModifier || k.small)
+                val label = labelFor(k, shift, caps, fn)
+                val paint = if (k.small || label.length > 2) subPaint else labelPaint
+                paint.color = if (k.small) C.MUTED else C.TEXT
+                val cy = Real.capCenterY(k.rect, density, pressed)
+                c.drawText(label, k.rect.centerX(), cy - (paint.ascent() + paint.descent()) / 2, paint)
+                val isLetter = k.label.length == 1 && k.label[0].isLetter()
+                if (!isLetter && k.shiftLabel != null && !shift && !fn && k.rect.height() > 34 * density) {
+                    subPaint.color = C.MUTED
+                    c.drawText(k.shiftLabel, k.rect.centerX(), k.rect.top + subPaint.textSize + 2 * density, subPaint)
+                }
+                if (k.mouse != 0 && k.mouse != TrackpadView.BTN_MIDDLE) {
+                    nubPaint.color = NUB_RED
+                    c.drawRect(k.rect.left + 6 * density, k.rect.top + 3 * density, k.rect.right - 6 * density,
+                        k.rect.top + 5 * density, nubPaint)
+                }
+                // Status lights: Caps Lock, and latched (locked / one-shot) modifiers.
+                if (k.code == Keys.CAPS) Real.led(c, k.rect.left + 8 * density, k.rect.top + 8 * density, density, caps)
+                else if (st != ModState.OFF) Real.led(c, k.rect.left + 8 * density, k.rect.top + 8 * density, density, true, st == ModState.ONESHOT)
+                continue
+            }
             keyPaint.fillOrOutline(
                 when {
                     pressed -> C.ACCENT

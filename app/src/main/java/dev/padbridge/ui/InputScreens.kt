@@ -3,6 +3,8 @@ package dev.padbridge.ui
 import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.rounded.Gamepad
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.KeyboardVoice
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.FastForward
@@ -279,59 +281,87 @@ fun TrackpadScreen(
         if (kbOpen) ime.post { ime.showKeyboard() } else ime.hideKeyboard()
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
-            if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
-            Spacer(Modifier.weight(1f))
-            AodButton(aod, onAod)
-            OverflowMenu(
-                listOf(
-                    MenuEntry("Trackpad only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
-                    MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
-                        if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
-                    MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
-                    MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
-                    MenuEntry("Auto-rotate", Icons.Rounded.ScreenRotation, checked = orientation == 0, divider = true) {
-                        orientation = 0; Settings.trackpadOrientation = 0
-                    },
-                    MenuEntry("Lock portrait", Icons.Rounded.StayCurrentPortrait, checked = orientation == 1) {
-                        orientation = 1; Settings.trackpadOrientation = 1
-                    },
-                    MenuEntry("Lock landscape", Icons.Rounded.StayCurrentLandscape, checked = orientation == 2) {
-                        orientation = 2; Settings.trackpadOrientation = 2
-                    },
-                )
-            )
-            Spacer(Modifier.width(4.dp))
-            FilledTonalIconToggleButton(
-                checked = kbOpen, onCheckedChange = { kbOpen = it },
-                modifier = Modifier.size(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide))
-                    .aodOutline(aod, IconButtonDefaults.mediumRoundShape),
-                shape = IconButtonDefaults.mediumRoundShape,
-            ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Keyboard") }
-        }
-        NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
-        ScreenshotGestureNotice(Modifier.padding(bottom = 8.dp))
+    val menu = listOf(
+        MenuEntry("Trackpad only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
+        MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
+            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
+        MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
+        MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
+        MenuEntry("Auto-rotate", Icons.Rounded.ScreenRotation, checked = orientation == 0, divider = true) {
+            orientation = 0; Settings.trackpadOrientation = 0
+        },
+        MenuEntry("Lock portrait", Icons.Rounded.StayCurrentPortrait, checked = orientation == 1) {
+            orientation = 1; Settings.trackpadOrientation = 1
+        },
+        MenuEntry("Lock landscape", Icons.Rounded.StayCurrentLandscape, checked = orientation == 2) {
+            orientation = 2; Settings.trackpadOrientation = 2
+        },
+    )
+    val kbButton: @Composable () -> Unit = {
+        FilledTonalIconToggleButton(
+            checked = kbOpen, onCheckedChange = { kbOpen = it },
+            modifier = Modifier.size(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide))
+                .aodOutline(aod, IconButtonDefaults.mediumRoundShape),
+            shape = IconButtonDefaults.mediumRoundShape,
+        ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Keyboard") }
+    }
+    // Phones in landscape: the toolbar becomes a slim column at the side, so the pad gets the whole height
+    // (a top row took a third of it).
+    val shortLandscape = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 520
+    val padColumn: @Composable (Modifier) -> Unit = { m ->
+        Column(m) {
+            if (shortLandscape && aod) ConnectionChip(hid, true, Modifier.padding(start = 4.dp, bottom = 8.dp))
+            NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
+            ScreenshotGestureNotice(Modifier.padding(bottom = 8.dp))
 
-        AnimatedVisibility(kbOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column(Modifier.padding(bottom = 8.dp)) {
-                AndroidView({ ime }, Modifier.fillMaxWidth().height(52.dp))
-                ChipRow(quickKeys(os), Modifier.padding(top = 8.dp))
+            AnimatedVisibility(kbOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Column(Modifier.padding(bottom = 8.dp)) {
+                    AndroidView({ ime }, Modifier.fillMaxWidth().height(52.dp))
+                    ChipRow(quickKeys(os), Modifier.padding(top = 8.dp))
+                }
+            }
+
+            AndroidView(
+                factory = { TrackpadView(it) },
+                update = { v -> hid.version; osVersion; aod; v.invalidate() },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+
+            if (Settings.showClickButtons) {
+                AndroidView(
+                    factory = { ClickBar(it) },
+                    update = { v -> aod; v.invalidate() },
+                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 8.dp),
+                )
             }
         }
+    }
 
-        AndroidView(
-            factory = { TrackpadView(it) },
-            update = { v -> hid.version; osVersion; aod; v.invalidate() },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        )
-
-        if (Settings.showClickButtons) {
-            AndroidView(
-                factory = { ClickBar(it) },
-                update = { v -> aod; v.invalidate() },
-                modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 8.dp),
-            )
+    if (shortLandscape) {
+        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp, bottom = 8.dp)) {
+            padColumn(Modifier.weight(1f).fillMaxHeight())
+            Column(
+                Modifier.fillMaxHeight().padding(start = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                kbButton()
+                Spacer(Modifier.weight(1f))
+                AodButton(aod, onAod)
+                OverflowMenu(menu)
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
+                if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
+                Spacer(Modifier.weight(1f))
+                AodButton(aod, onAod)
+                OverflowMenu(menu)
+                Spacer(Modifier.width(4.dp))
+                kbButton()
+            }
+            padColumn(Modifier.weight(1f).fillMaxWidth())
         }
     }
 
@@ -390,7 +420,7 @@ private fun GuideRow(gesture: String, action: String, detail: String?) {
 @Composable
 fun KeyboardScreen(
     hid: HidUi, osVersion: Int, fullscreen: Boolean = false, onToggleFullscreen: () -> Unit = {},
-    onFullDisplay: () -> Unit = {}, onGoConnect: () -> Unit = {},
+    onFullDisplay: () -> Unit = {}, onGoConnect: () -> Unit = {}, aod: Boolean = false, onAod: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val os = remember(osVersion) { Settings.hostOs }
@@ -414,12 +444,15 @@ fun KeyboardScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 16.dp, end = 8.dp),
         ) {
-            AndroidView({ ime }, Modifier.weight(1f).height(52.dp))
+            // AOD: a watch-style clock and connection readout instead of the text field.
+            if (aod) { ConnectionChip(hid, true); Spacer(Modifier.weight(1f)) }
+            else AndroidView({ ime }, Modifier.weight(1f).height(52.dp))
             Spacer(Modifier.width(4.dp))
-            androidx.compose.material3.IconButton(onClick = { sheet = true }) {
+            AodButton(aod, onAod)
+            if (!aod) androidx.compose.material3.IconButton(onClick = { sheet = true }) {
                 Icon(Icons.Rounded.Dashboard, "Keyboard layout and size")
             }
-            OverflowMenu(
+            if (!aod) OverflowMenu(
                 listOf(
                     MenuEntry("Keyboard only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
                     MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
@@ -439,13 +472,13 @@ fun KeyboardScreen(
         }
 
         val laptopNow = rememberLaptopDeck(cfg)
-        if (showRows && !imeUp && !laptopNow) {
+        if (showRows && !imeUp && !laptopNow && !aod) {
             ChipRow(os.shortcuts.map { s -> Chip(s.label) { HidManager.combo(s.combo) } }, Modifier.padding(top = 10.dp))
             MediaRow(Modifier.padding(top = 8.dp))
         }
 
         if (!imeUp) {
-            KeyboardArea(hid, os, cfg, resizable = true, modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp))
+            KeyboardArea(hid, os, cfg, resizable = true, modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp), aod = aod)
         }
     }
 
@@ -457,7 +490,7 @@ fun KeyboardScreen(
  * Width and alignment come from the layout sheet. Everything is remembered per orientation.
  */
 @Composable
-private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, modifier: Modifier = Modifier) {
+private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, modifier: Modifier = Modifier, aod: Boolean = false) {
     val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
         android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val density = androidx.compose.ui.platform.LocalDensity.current.density
@@ -479,7 +512,7 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     fun Keys(mod: Modifier) = AndroidView(
         factory = { KeyboardView(it) },
         update = { v ->
-            hid.version
+            hid.version; aod
             v.keyPreview = preview
             v.flick = flick
             v.spaceCursor = spaceCursor
@@ -1072,7 +1105,8 @@ fun FullDisplayKeyboard(hid: HidUi, osVersion: Int, onExit: () -> Unit) {
             Box(Modifier.size(width = 40.dp, height = 4.dp)
                 .background(MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape))
         }
-        KeyboardArea(hid, os, cfg, resizable = false,
+        // Same layout as the Keyboard tab (saved height, trackpad in the free space, laptop deck), just edge to edge.
+        KeyboardArea(hid, os, cfg, resizable = true,
             modifier = Modifier.weight(1f).fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 6.dp))
     }
     Box(Modifier.fillMaxSize()) {
@@ -1339,8 +1373,16 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
     var profile by remember { mutableStateOf(Settings.remoteProfile) }
     var volKeys by remember { mutableStateOf(Settings.remoteVolumeKeys) }
     var kbOpen by remember { mutableStateOf(false) }
+    var incognito by remember { mutableStateOf(!Settings.imeLearning) }
     val ime = remember { ImeCaptureView(ctx) }
     LaunchedEffect(kbOpen) { if (kbOpen) ime.post { ime.showKeyboard() } else ime.hideKeyboard() }
+
+    // Phones hold the remote like a remote: portrait only. Tablets keep rotating.
+    val phone = !isTablet()
+    androidx.compose.runtime.DisposableEffect(phone) {
+        if (phone) activity?.setTrackpadOrientation(1)
+        onDispose { if (phone) activity?.setTrackpadOrientation(0) }
+    }
 
     // Phone volume buttons: Slides = previous / next slide, otherwise the host's volume.
     androidx.compose.runtime.DisposableEffect(profile, volKeys) {
@@ -1430,6 +1472,24 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
         AnimatedVisibility(kbOpen) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 AndroidView({ ime }, Modifier.weight(1f).height(48.dp))
+                // Incognito on by default (what you type on the TV doesn't train the phone keyboard). Off: the
+                // keyboard learns and suggests, so a direct-typing mode moves to "Suggest" (still typed live).
+                FilledTonalIconToggleButton(
+                    checked = incognito,
+                    onCheckedChange = {
+                        incognito = it
+                        Settings.imeLearning = !it
+                        if (!it && Settings.typingMode == 0) Settings.typingMode = 1
+                        ime.refreshMode()
+                    },
+                    modifier = Modifier.padding(start = 8.dp),
+                ) {
+                    Icon(
+                        if (incognito) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        if (incognito) "Incognito on: the phone keyboard doesn't learn. Tap to let it learn"
+                        else "Incognito off: the phone keyboard learns. Tap for incognito",
+                    )
+                }
                 VoiceTypeButton()
             }
         }
@@ -1557,8 +1617,14 @@ private fun Modifier.remotePress(b: dev.padbridge.RemoteButton, onPressed: (Bool
 @Composable
 private fun pressColor(pressed: Boolean): androidx.compose.ui.graphics.Color {
     val cs = MaterialTheme.colorScheme
+    // Realistic light: white buttons like a silver remote's; dark keeps the graphite containers.
+    val real = dev.padbridge.Real.active && !dev.padbridge.Real.dark
     return androidx.compose.animation.animateColorAsState(
-        if (pressed) cs.surfaceContainerHighest else cs.surfaceContainerHigh, label = "keyColor",
+        when {
+            real -> if (pressed) cs.surfaceContainerHighest else cs.surfaceContainer
+            pressed -> cs.surfaceContainerHighest
+            else -> cs.surfaceContainerHigh
+        }, label = "keyColor",
     ).value
 }
 
@@ -1575,6 +1641,8 @@ private fun RemoteKey(
         shape = shape,
         color = pressColor(pressed),
         contentColor = MaterialTheme.colorScheme.onSurface,
+        // Realistic: raised buttons with a soft shadow (flatter while pressed).
+        shadowElevation = if (dev.padbridge.Real.active) (if (pressed) 1.dp else 3.dp) else 0.dp,
         modifier = Modifier.size(size)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .aodOutline(aod, shape)
@@ -1689,8 +1757,10 @@ private fun VolumeRocker(
     val shape = androidx.compose.foundation.shape.CircleShape
     Surface(
         shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = if (dev.padbridge.Real.active && !dev.padbridge.Real.dark) MaterialTheme.colorScheme.surfaceContainer
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,
+        shadowElevation = if (dev.padbridge.Real.active) 3.dp else 0.dp,
         modifier = Modifier.size(width, height).aodOutline(aod, shape),
     ) {
         val halves = listOf(Triple(up, Icons.Rounded.Add, upPressed), Triple(down, Icons.Rounded.Remove, downPressed))
@@ -1737,13 +1807,13 @@ fun OverflowMenu(entries: List<MenuEntry>) {
 
 /** Connected computer at a glance (dot + name), for screens where the title would repeat the tab. */
 @Composable
-fun ConnectionChip(hid: HidUi, aod: Boolean) {
+fun ConnectionChip(hid: HidUi, aod: Boolean, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(12.dp)
     val cs = MaterialTheme.colorScheme
     Surface(
         shape = shape,
         color = if (hid.connected) cs.secondaryContainer else cs.surfaceContainerHigh,
-        modifier = Modifier.aodOutline(aod, shape),
+        modifier = modifier.aodOutline(aod, shape),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
             if (aod) {

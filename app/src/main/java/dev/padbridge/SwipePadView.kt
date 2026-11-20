@@ -102,8 +102,11 @@ class SwipePadView(ctx: Context) : View(ctx) {
     override fun onDraw(c: Canvas) {
         val r = 28 * density
         rect.set(0f, 0f, width.toFloat(), height.toFloat())
-        fill.fillOrOutline(if (holding) C.SURFACE3 else C.SURFACE2, density, holding)
-        c.drawRoundRect(rect, r, r, fill)
+        if (Real.active) Real.trackpad(c, rect, r, density)
+        else {
+            fill.fillOrOutline(if (holding) C.SURFACE3 else C.SURFACE2, density, holding)
+            c.drawRoundRect(rect, r, r, fill)
+        }
 
         // Chevrons at the edges; the one in the direction just sent lights up.
         val cx = width / 2f; val cy = height / 2f

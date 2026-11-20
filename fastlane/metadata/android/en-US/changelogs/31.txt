@@ -1,0 +1,5 @@
+New Realistic look (replaces Mixed): the keyboard, trackpad and remote drawn as silver or space black hardware.
+AOD mode on the keyboard. Incognito toggle for the remote's typing.
+Phone landscape trackpad uses almost the whole screen; the remote stays portrait on phones.
+Edge-to-edge keyboard keeps your layout and trackpad.
+About shows the developer's photo and X link.

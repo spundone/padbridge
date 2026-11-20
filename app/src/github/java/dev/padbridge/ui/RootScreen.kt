@@ -209,7 +209,10 @@ fun RootScreen(onBack: () -> Unit) {
                     "Reports a game controller's vendor and product ID in the Bluetooth Device ID record, which is how " +
                         "Windows, Linux, SDL and Steam pick a controller driver. The gamepad's reports stay in PadBridge's " +
                         "generic layout, so a driver expecting the real controller's format may misread buttons; this is for " +
-                        "experimenting. Current: " + (did.ifEmpty { "phone default" }),
+                        "experimenting.\n\nWarning: the ID applies to the whole phone, not just the gamepad. A computer that " +
+                        "pairs while it's set treats PadBridge as a game controller only: the trackpad and keyboard stop " +
+                        "working, and on a Mac every tap or key opens the Games app. To undo it, choose Off here, then " +
+                        "forget the phone on the computer and pair again.\n\nCurrent: " + (did.ifEmpty { "phone default" }),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp),

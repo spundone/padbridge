@@ -800,9 +800,10 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
         val r = cornerRadius()
         rect.set(0f, 0f, width.toFloat(), height.toFloat())
         if (C.AOD) rect.inset(density, density)
-        c.drawRoundRect(rect, r, r, padPaint.fillOrOutline(C.SURFACE, density))
+        if (Real.active) Real.trackpad(c, rect, r, density)
+        else c.drawRoundRect(rect, r, r, padPaint.fillOrOutline(C.SURFACE, density))
 
-        if (!C.AOD) {
+        if (!C.AOD && !Real.active) {
             dotPaint.color = C.SURFACE3
             val step = 28 * density
             var y = step
@@ -816,13 +817,19 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
         if (Settings.edgeScroll) {
             val w = 4 * density
             val active = mode == Mode.EDGE_SCROLL_V
-            stripPaint.fillOrOutline(if (active) C.ACCENT else C.SURFACE3, density, active)
-            rect.set(width - stripZone / 2 - w / 2, r, width - stripZone / 2 + w / 2, height - r - stripZone)
-            c.drawRoundRect(rect, w, w, stripPaint)
+            // Realistic: a plain glass surface; the strips only show while you scroll with them.
+            val real = Real.active
+            if (!real || active) {
+                stripPaint.fillOrOutline(if (active) C.ACCENT else C.SURFACE3, density, active)
+                rect.set(width - stripZone / 2 - w / 2, r, width - stripZone / 2 + w / 2, height - r - stripZone)
+                c.drawRoundRect(rect, w, w, stripPaint)
+            }
             val hActive = mode == Mode.EDGE_SCROLL_H
-            stripPaint.fillOrOutline(if (hActive) C.ACCENT else C.SURFACE3, density, hActive)
-            rect.set(r, height - stripZone / 2 - w / 2, width - r - stripZone, height - stripZone / 2 + w / 2)
-            c.drawRoundRect(rect, w, w, stripPaint)
+            if (!real || hActive) {
+                stripPaint.fillOrOutline(if (hActive) C.ACCENT else C.SURFACE3, density, hActive)
+                rect.set(r, height - stripZone / 2 - w / 2, width - r - stripZone, height - stripZone / 2 + w / 2)
+                c.drawRoundRect(rect, w, w, stripPaint)
+            }
         }
 
         fingerPaint.color = C.ACCENT
@@ -955,6 +962,14 @@ class ClickBar(ctx: Context) : View(ctx), Routable {
             val l = if (i == 0) 0f else half + gap / 2
             val rr = if (i == 0) half - gap / 2 else width.toFloat()
             rect.set(l, 0f, rr, height.toFloat())
+            if (Real.active) {
+                // Two real buttons, like the click bar under an old MacBook's trackpad.
+                Real.key(c, rect, 14 * density, density, on, false)
+                text.color = C.TEXT
+                c.drawText(if (i == 0) "Left" else "Right", rect.centerX(),
+                    Real.capCenterY(rect, density, on) - (text.ascent() + text.descent()) / 2, text)
+                continue
+            }
             fill.fillOrOutline(if (on) C.ACCENT else C.SURFACE2, density, on)
             // Connected-button shape: round outside corners, tight inner corners (morph to round when pressed).
             val innerR = if (on) outer else inner
