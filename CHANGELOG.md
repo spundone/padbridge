@@ -9,6 +9,26 @@ undated.
 
 ## [Unreleased]
 
+## [1.8.0] – 2026-11-20
+
+### Added
+- Drawing tablet:
+  - **Palm rejection:** while the S Pen is in use (and for a moment after), and for palm-sized touches, fingers
+    don't draw, so your hand can rest on the glass.
+  - **Express keys** beside the area (left when sideways, below upright), like a Wacom's: undo, redo, brush
+    smaller / bigger, eraser, pan (holds Space) and zoom out / in, with the right shortcuts for Mac or
+    Windows / Linux.
+  - **Finger gestures:** two fingers pan, pinch zooms, a two-finger tap undoes, a three-finger tap redoes. A stroke
+    starts once the finger moves, so a second finger becomes a gesture instead of a dot.
+  - **Pressure curve:** Soft, Linear or Firm.
+  - The area starts centered and as large as fits.
+
+### Changed
+- Tablets: the remote uses the screen. Sideways, the clickpad and the buttons sit side by side instead of a
+  phone-width column in the middle; the clickpad, swipe pad and buttons are bigger in both orientations.
+- Tablets: the gamepad keeps phone-sized controls near the bottom corners, where your thumbs are when you hold a
+  tablet, instead of scaling the sticks up with the screen.
+
 ## [1.7.0] – 2026-11-20
 
 ### Added

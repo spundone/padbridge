@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -58,8 +59,9 @@ class TabletView(ctx: Context) : View(ctx) {
         var h = w / ratio
         if (h > pad.height()) { h = pad.height(); w = h * ratio }
         if (w > pad.width()) { w = pad.width(); h = w / ratio }
-        val l = (pad.left + a[0] * pad.width()).coerceIn(pad.left, pad.right - w)
-        val t = (pad.top + a[1] * pad.height()).coerceIn(pad.top, pad.bottom - h)
+        // Never moved (negative): centered.
+        val l = (if (a[0] < 0f) pad.centerX() - w / 2 else pad.left + a[0] * pad.width()).coerceIn(pad.left, pad.right - w)
+        val t = (if (a[1] < 0f) pad.centerY() - h / 2 else pad.top + a[1] * pad.height()).coerceIn(pad.top, pad.bottom - h)
         area.set(l, t, l + w, t + h)
         invalidate()
     }
@@ -100,6 +102,17 @@ class TabletView(ctx: Context) : View(ctx) {
         invalidate()
     }
 
+    /** Pressure curve: soft (light strokes reach full pressure sooner), linear, or firm. */
+    private fun curve(p: Float): Float = when (Settings.tabletCurve) {
+        0 -> p.coerceIn(0f, 1f).pow(0.6f)
+        2 -> p.coerceIn(0f, 1f).pow(1.7f)
+        else -> p.coerceIn(0f, 1f)
+    }
+
+    /** The pen was last seen (hovering or touching): fingers are a resting hand until a moment after. */
+    private var penSeen = 0L
+    private fun penRecently(t: Long) = t - penSeen < 1500
+
     private fun leave() {
         if (hx < 0) return
         if (!useMouse) HidManager.pen(0, 0, false, false, false, false, 0f)
@@ -113,6 +126,7 @@ class TabletView(ctx: Context) : View(ctx) {
         if (editing) return true
         val t = e.getToolType(0)
         if (t != MotionEvent.TOOL_TYPE_STYLUS && t != MotionEvent.TOOL_TYPE_ERASER) return super.onHoverEvent(e)
+        penSeen = e.eventTime
         when (e.actionMasked) {
             MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> send(e.x, e.y, true, false,
                 e.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0, t == MotionEvent.TOOL_TYPE_ERASER, 0f)
@@ -142,13 +156,14 @@ class TabletView(ctx: Context) : View(ctx) {
         val t = e.getToolType(0)
         val pen = t == MotionEvent.TOOL_TYPE_STYLUS || t == MotionEvent.TOOL_TYPE_ERASER
         if (pen) {
+            penSeen = e.eventTime
             val barrel = e.buttonState and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
             val eraser = t == MotionEvent.TOOL_TYPE_ERASER
             when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { send(e.x, e.y, true, true, barrel, eraser, e.pressure); Haptics.soft(0.25f) }
+                MotionEvent.ACTION_DOWN -> { send(e.x, e.y, true, true, barrel, eraser, curve(e.pressure)); Haptics.soft(0.25f) }
                 MotionEvent.ACTION_MOVE -> {
-                    for (h in 0 until e.historySize) send(e.getHistoricalX(h), e.getHistoricalY(h), true, true, barrel, eraser, e.getHistoricalPressure(h))
-                    send(e.x, e.y, true, true, barrel, eraser, e.pressure)
+                    for (h in 0 until e.historySize) send(e.getHistoricalX(h), e.getHistoricalY(h), true, true, barrel, eraser, curve(e.getHistoricalPressure(h)))
+                    send(e.x, e.y, true, true, barrel, eraser, curve(e.pressure))
                 }
                 // Lifted: still in range (hovering) until the hover exit.
                 MotionEvent.ACTION_UP -> send(e.x, e.y, true, false, barrel, eraser, 0f)
@@ -156,23 +171,125 @@ class TabletView(ctx: Context) : View(ctx) {
             }
             return true
         }
-        return if (Settings.tabletFingerHover) fingerHover(e) else fingerDraw(e)
+        // Palm rejection: while the pen is in use, and for any palm-sized contact, fingers don't draw or point;
+        // two or more still pan, zoom and undo.
+        val idx = e.actionIndex
+        if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+            palm = Typing.isPalm(e, idx, resources.displayMetrics.ydpi) || penRecently(e.eventTime)
+        }
+        if (palm && e.pointerCount < 2 && !gesturing) return true
+        return if (Settings.tabletFingerHover && !palm) fingerHover(e) else fingerDraw(e)
     }
 
-    /** Finger draws: touch = pen down at full pressure. */
+    private var palm = false
+
+    /**
+     * Finger draws: touch = pen down at full pressure. The stroke starts once the finger moves (or after a beat), so
+     * a second finger landing right away turns the touch into a gesture instead of a dot:
+     * two fingers pan (scroll), pinch zooms, a two-finger tap undoes, a three-finger tap redoes.
+     */
     private fun fingerDraw(e: MotionEvent): Boolean {
-        if (e.pointerCount > 1) return true
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { send(e.x, e.y, true, true, false, false, 1f); Haptics.soft(0.25f) }
-            MotionEvent.ACTION_MOVE -> {
-                for (h in 0 until e.historySize) send(e.getHistoricalX(h), e.getHistoricalY(h), true, true, false, false, 1f)
-                send(e.x, e.y, true, true, false, false, 1f)
+            MotionEvent.ACTION_DOWN -> {
+                gesturing = false; stroking = false; maxFingers = 1
+                fingerDownAt = e.eventTime; fingerX0 = e.x; fingerY0 = e.y
+                if (!palm) postDelayed(startStroke, 90)
             }
-            MotionEvent.ACTION_UP -> { send(e.x, e.y, true, false, false, false, 0f); leave() }
-            MotionEvent.ACTION_CANCEL -> leave()
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                removeCallbacks(startStroke)
+                if (stroking) { send(hx, hy, true, false, false, false, 0f); leave(); stroking = false }
+                maxFingers = max(maxFingers, e.pointerCount)
+                gesturing = true; gestureMoved = false
+                gx = centroidX(e); gy = centroidY(e); span0 = spread(e); zoomSteps = 0
+                fingerX0 = gx; fingerY0 = gy // the gesture's start, to tell a tap from a pan
+                if (fingerDownAt == 0L) fingerDownAt = e.eventTime
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (gesturing) { gesture(e); return true }
+                if (palm) return true
+                if (!stroking && hypot(e.x - fingerX0, e.y - fingerY0) > 3 * d) { removeCallbacks(startStroke); startStroke.run() }
+                if (stroking) {
+                    for (h in 0 until e.historySize) send(e.getHistoricalX(h), e.getHistoricalY(h), true, true, false, false, 1f)
+                    send(e.x, e.y, true, true, false, false, 1f)
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> if (gesturing) {
+                // Re-anchor on the fingers that stay, so lifting one doesn't jump the pan.
+                val up = e.actionIndex
+                var sx = 0f; var sy = 0f; var n = 0
+                for (k in 0 until e.pointerCount) if (k != up) { sx += e.getX(k); sy += e.getY(k); n++ }
+                if (n > 0) { gx = sx / n; gy = sy / n }
+            }
+            MotionEvent.ACTION_UP -> {
+                removeCallbacks(startStroke)
+                if (gesturing) {
+                    val quick = e.eventTime - fingerDownAt < 300 && !gestureMoved
+                    if (quick && maxFingers == 2) { HidManager.combo(undoCombo()); Haptics.click() }
+                    if (quick && maxFingers >= 3) { HidManager.combo(redoCombo()); Haptics.click() }
+                } else if (!palm) {
+                    if (!stroking) startStroke.run() // a tap is a dot
+                    send(e.x, e.y, true, false, false, false, 0f); leave()
+                }
+                gesturing = false; stroking = false; fingerDownAt = 0L
+            }
+            MotionEvent.ACTION_CANCEL -> { removeCallbacks(startStroke); if (stroking) leave(); gesturing = false; stroking = false }
         }
         return true
     }
+
+    private var stroking = false
+    private var gesturing = false
+    private var gestureMoved = false
+    private var gx = 0f
+    private var gy = 0f
+    private var span0 = 0f
+    private var zoomSteps = 0
+
+    private val startStroke = Runnable {
+        if (gesturing || stroking) return@Runnable
+        stroking = true
+        send(fingerX0, fingerY0, true, true, false, false, 1f); Haptics.soft(0.25f)
+    }
+
+    private fun centroidX(e: MotionEvent): Float { var s = 0f; for (k in 0 until e.pointerCount) s += e.getX(k); return s / e.pointerCount }
+    private fun centroidY(e: MotionEvent): Float { var s = 0f; for (k in 0 until e.pointerCount) s += e.getY(k); return s / e.pointerCount }
+    private fun spread(e: MotionEvent): Float {
+        val cx = centroidX(e); val cy = centroidY(e); var s = 0f
+        for (k in 0 until e.pointerCount) s += hypot(e.getX(k) - cx, e.getY(k) - cy)
+        return s / e.pointerCount
+    }
+
+    /** Two fingers: the canvas follows them (scroll); spreading or pinching zooms in steps. */
+    private fun gesture(e: MotionEvent) {
+        if (e.pointerCount < 2) return
+        val cx = centroidX(e); val cy = centroidY(e)
+        val dx = cx - gx; val dy = cy - gy
+        gx = cx; gy = cy
+        val sp = spread(e)
+        if (span0 > 0f) {
+            val ratio = sp / span0
+            if (ratio > 1.15f || ratio < 1f / 1.15f) {
+                val zoomIn = ratio > 1f
+                HidManager.combo(zoomCombo(zoomIn)); Haptics.soft(0.5f)
+                span0 = sp; gestureMoved = true; zoomSteps++
+                return
+            }
+        }
+        if (hypot(cx - fingerX0, cy - fingerY0) > 8 * d) gestureMoved = true
+        // Content follows the fingers (natural), like panning a canvas.
+        // Same sign as the trackpad: computers like macOS reverse the wheel themselves.
+        val sign = if (Settings.naturalScroll) 1f else -1f
+        if (gestureMoved) HidManager.scroll(sign * dy / d / 22f, -sign * dx / d / 22f)
+    }
+
+    private val mod get() = if (Settings.hostOs == HostOs.MAC) Keys.L_GUI else Keys.L_CTRL
+
+    fun undoCombo() = Combo(mod, Keys.letter('z'))
+    fun redoCombo() = when (Settings.hostOs) {
+        HostOs.WINDOWS -> Combo(Keys.L_CTRL, Keys.letter('y'))
+        else -> Combo(mod or Keys.L_SHIFT, Keys.letter('z'))
+    }
+    fun zoomCombo(zoomIn: Boolean) = Combo(mod, if (zoomIn) Keys.EQUAL else Keys.MINUS)
 
     /** Finger hovers: moving points without clicking; tap = click, double-tap-hold = drag, two-finger tap = right. */
     private fun fingerHover(e: MotionEvent): Boolean {

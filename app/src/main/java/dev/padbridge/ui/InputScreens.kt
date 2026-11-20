@@ -1481,6 +1481,11 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
 
     // "Short" screens (phones in landscape) get the side-by-side layout; tablets have room for the tall one.
     val landscapeTop = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 520
+    // Tablets: bigger keys and clickpad; sideways, the clickpad and the buttons sit side by side like a remote's
+    // body laid flat, instead of a phone-width column in the middle of the screen.
+    val big = isTablet()
+    val sideBySide = landscapeTop || (big && androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE)
     // Profile picker. In landscape it shares the toolbar row, leaving the height to the clickpad.
     fun profileIcon(p: dev.padbridge.RemoteProfile) = when (p) {
         dev.padbridge.RemoteProfile.ANDROID_TV, dev.padbridge.RemoteProfile.APPLE_TV -> Icons.Rounded.Tv
@@ -1516,7 +1521,12 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
     var swipe by remember { mutableStateOf(Settings.remoteSwipe) }
     val extras = (if (profile == dev.padbridge.RemoteProfile.SLIDES) emptyList() else listOf(prev, next)) + profile.extras(os)
     // On tablets the remote stays a remote-sized column in the middle instead of spreading edge to edge.
-    val remoteWidth = if (landscapeTop) Modifier.fillMaxWidth() else Modifier.wrapContentWidth().widthIn(max = 600.dp).fillMaxWidth()
+    val remoteWidth = when {
+        landscapeTop -> Modifier.fillMaxWidth()
+        sideBySide -> Modifier.wrapContentWidth().widthIn(max = 1100.dp).fillMaxWidth()
+        big -> Modifier.wrapContentWidth().widthIn(max = 720.dp).fillMaxWidth()
+        else -> Modifier.wrapContentWidth().widthIn(max = 600.dp).fillMaxWidth()
+    }
     Column(Modifier.fillMaxSize().then(remoteWidth).padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
@@ -1572,19 +1582,19 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
         }
 
         if (profile == dev.padbridge.RemoteProfile.ANDROID_TV) {
-            GoogleTvRemote(aod, landscapeTop, swipe, back, home, Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp))
+            GoogleTvRemote(aod, sideBySide, swipe, back, home, Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp), big)
         } else {
         // Siri Remote-style: a large clickpad, then a quiet two-column grid of identical round keys
         // (Back | Home, Play | volume rocker, Mute). No panel, no colored keys: the controls float on the page.
         // Landscape puts the keys beside the clickpad instead of under it.
         val slides = profile == dev.padbridge.RemoteProfile.SLIDES
-        val landscapeNow = landscapeTop
-        val key = if (landscapeNow) 52.dp else 64.dp
-        val gap = if (landscapeNow) 12.dp else 16.dp
+        val landscapeNow = sideBySide
+        val key = if (landscapeTop) 52.dp else if (big) 76.dp else 64.dp
+        val gap = if (landscapeTop) 12.dp else if (big) 22.dp else 16.dp
         val clickpad: @Composable (Modifier) -> Unit = { m ->
             androidx.compose.foundation.layout.BoxWithConstraints(m, contentAlignment = Alignment.Center) {
                 // Square, as large as fits (capped for tablets).
-                val side = minOf(maxWidth - 16.dp, maxHeight, 400.dp)
+                val side = minOf(maxWidth - 16.dp, maxHeight, if (big) 560.dp else 400.dp)
                 AndroidView(
                     factory = { DpadView(it) },
                     update = { v -> aod; v.invalidate() },
@@ -1634,7 +1644,8 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 clickpad(Modifier.weight(1f).fillMaxHeight())
-                wideKeys()
+                // Phones sideways: two short rows; a tablet has the height for the tall two-column grid.
+                if (landscapeTop) wideKeys() else keys()
                 Spacer(Modifier.width(24.dp))
             }
         } else {
@@ -1742,7 +1753,7 @@ private fun RemoteKey(
 @Composable
 private fun GoogleTvRemote(
     aod: Boolean, landscape: Boolean, swipe: Boolean, back: dev.padbridge.RemoteButton, home: dev.padbridge.RemoteButton,
-    modifier: Modifier,
+    modifier: Modifier, big: Boolean = false,
 ) {
     val power = remember { dev.padbridge.RemoteButton("Power", dev.padbridge.RemoteOut.Consumer(Keys.C_POWER)) }
     val assistant = remember {
@@ -1750,17 +1761,17 @@ private fun GoogleTvRemote(
     }
     val mute = remember { dev.padbridge.RemoteButton("Mute", dev.padbridge.RemoteOut.Consumer(Keys.C_MUTE)) }
     val play = remember { dev.padbridge.RemoteButton("Play / pause", dev.padbridge.RemoteOut.Consumer(Keys.C_PLAY_PAUSE)) }
-    val key = if (landscape) 52.dp else 60.dp
-    val gap = if (landscape) 12.dp else 18.dp
+    val key = if (big) 76.dp else if (landscape) 52.dp else 60.dp
+    val gap = if (big) 22.dp else if (landscape) 12.dp else 18.dp
 
     val pad: @Composable (Modifier) -> Unit = { m ->
         androidx.compose.foundation.layout.BoxWithConstraints(m, contentAlignment = Alignment.Center) {
             if (swipe) AndroidView(
                 factory = { dev.padbridge.SwipePadView(it) },
                 update = { v -> aod; v.invalidate() },
-                modifier = Modifier.size(minOf(maxWidth, 460.dp), minOf(maxHeight, 460.dp)),
+                modifier = Modifier.size(minOf(maxWidth, if (big) 620.dp else 460.dp), minOf(maxHeight, if (big) 620.dp else 460.dp)),
             ) else {
-                val side = minOf(maxWidth - 16.dp, maxHeight, 400.dp)
+                val side = minOf(maxWidth - 16.dp, maxHeight, if (big) 560.dp else 400.dp)
                 AndroidView(factory = { DpadView(it) }, update = { v -> aod; v.invalidate() }, modifier = Modifier.size(side))
             }
         }

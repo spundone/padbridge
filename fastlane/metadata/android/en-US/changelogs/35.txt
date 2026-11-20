@@ -1,0 +1,2 @@
+Drawing tablet: palm rejection while you use the S Pen, express keys (undo, redo, brush size, eraser, pan, zoom), two-finger pan, pinch zoom and tap to undo, and a pressure curve.
+Tablets: the remote sits side by side when sideways and is bigger; the gamepad keeps hand-sized controls near your thumbs.

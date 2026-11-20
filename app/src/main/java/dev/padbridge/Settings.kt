@@ -218,8 +218,18 @@ object Settings {
 
     /** Tablet area within the pad, as fractions: left, top, width (height follows the ratio). */
     var tabletArea: FloatArray
-        get() = floatArrayOf(float("tabletL", 0.04f), float("tabletT", 0.04f), float("tabletW", 0.92f))
+        get() = floatArrayOf(float("tabletL", -1f), float("tabletT", -1f), float("tabletW", 1f))
         set(v) { putFloat("tabletL", v[0]); putFloat("tabletT", v[1]); putFloat("tabletW", v[2]) }
+
+    /** Pen pressure curve: 0 = soft, 1 = linear, 2 = firm. */
+    var tabletCurve: Int
+        get() = p.getInt("tabletCurve", 1)
+        set(v) = p.edit().putInt("tabletCurve", v).apply()
+
+    /** Express keys (shortcut buttons) beside the tablet area. */
+    var tabletKeys: Boolean
+        get() = bool("tabletKeys", true)
+        set(v) = putBool("tabletKeys", v)
 
     /** Finger on the tablet: false = draws (touch = pen down), true = hovers (tap to click, double-tap-hold to drag). */
     var tabletFingerHover: Boolean

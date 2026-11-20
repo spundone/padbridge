@@ -158,7 +158,13 @@ class GamepadView(ctx: Context) : View(ctx) {
 
     private fun layoutControls() {
         if (width == 0) return
-        val W = width.toFloat(); val H = height.toFloat()
+        val W = width.toFloat()
+        // Tablets: lay the controls out for a phone-sized area (about a big phone held sideways) at the bottom of
+        // the screen, then shift them down. Sizes stay comfortable instead of growing with the screen, and the
+        // sticks and buttons sit where thumbs rest on a tablet held at its lower corners.
+        val cap = 440f * resources.displayMetrics.density
+        val H = min(height.toFloat(), cap)
+        val oy = height - H
         val u = min(W, H)
         allButtons.forEach { it.caption = null; it.isRect = false }
         leftStick.floating = false; rightStick.floating = false
@@ -240,6 +246,16 @@ class GamepadView(ctx: Context) : View(ctx) {
                 buttons = listOf(btnA, btnB, btnX, btnY, lb, rb, view, menu)
                 sticks = emptyList(); pedals = emptyList(); dpadOn = true; lookOn = false
             }
+        }
+        if (oy > 0f) {
+            allButtons.forEach { it.cy += oy; it.rect.offset(0f, oy) }
+            for (st in listOf(leftStick, rightStick)) {
+                st.center.offset(0f, oy); st.home.offset(0f, oy)
+                st.zone.bottom += oy // floating zones reach from where they started down to the bottom
+            }
+            dpad.center.offset(0f, oy)
+            brake.rect.offset(0f, oy); gas.rect.offset(0f, oy)
+            look.rect.bottom += oy // the look surface also covers the space above
         }
     }
 
