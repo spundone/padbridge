@@ -9,6 +9,23 @@ undated.
 
 ## [Unreleased]
 
+## [1.3.5] – 2026-11-20
+
+### Added
+- TrackPoint sensitivity slider (keyboard options).
+- Voice typing on the remote: open the keyboard and tap the mic; what you say is typed on the TV or computer.
+- Do Not Disturb in full screen (Settings → Air mouse & gyro, next to "Hide app bars"): silences notifications while the app bars are hidden, and only
+  while PadBridge is in front. Your own Do Not Disturb is left alone.
+- A notice when the phone's own three-finger screenshot swipe takes a trackpad gesture, saying how to turn it off.
+
+### Changed
+- Android TV remote is calmer: one remote picker instead of a row of chips, D-pad / swipe switch in the toolbar,
+  power joins the key rows, and Previous / Next / Rewind / Fast forward / Menu move to the ⋮ menu.
+
+### Fixed
+- Crash with three- and four-finger gestures when the phone's own gesture (such as a three-finger screenshot swipe)
+  took over the touch.
+
 ## [1.3.4] – 2026-11-19
 
 ### Added

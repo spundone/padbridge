@@ -1,7 +1,13 @@
 package dev.padbridge.ui
 
+import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.rounded.Gamepad
+import androidx.compose.material.icons.rounded.KeyboardVoice
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Swipe
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PowerSettingsNew
@@ -305,6 +311,7 @@ fun TrackpadScreen(
             ) { Icon(if (kbOpen) Icons.Rounded.KeyboardHide else Icons.Rounded.Keyboard, "Keyboard") }
         }
         NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
+        ScreenshotGestureNotice(Modifier.padding(bottom = 8.dp))
 
         AnimatedVisibility(kbOpen, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.padding(bottom = 8.dp)) {
@@ -421,6 +428,7 @@ fun KeyboardScreen(
             )
         }
         NotConnectedBanner(hid, onGoConnect, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        ScreenshotGestureNotice(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         AnimatedVisibility(skipped > 0) {
             Text(
                 "$skipped character(s) can't be typed with a US layout and were skipped.",
@@ -788,6 +796,7 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var typing by remember { mutableStateOf(Settings.typingMode) }
     var learning by remember { mutableStateOf(Settings.imeLearning) }
     var trackPoint by remember { mutableStateOf(Settings.kbTrackPoint) }
+    var nubSpeed by remember { mutableStateOf(Settings.trackPointSpeed) }
     var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
     val tabletLand = isTablet() && landscape
     var laptop by remember { mutableStateOf(Settings.kbLaptop(landscape, tabletLand)) }
@@ -1009,9 +1018,25 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                 }
             }
             item {
-                SheetSwitch("TrackPoint on Laptop and Full layouts (tap to click, hold Fn to scroll)", trackPoint, 7, 8) {
-                    trackPoint = it; Settings.kbTrackPoint = it; onChanged()
-                }
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { trackPoint = !trackPoint; Settings.kbTrackPoint = trackPoint; onChanged() },
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(7, 8),
+                    colors = segColors(),
+                    trailingContent = {
+                        androidx.compose.material3.Switch(checked = trackPoint, onCheckedChange = {
+                            trackPoint = it; Settings.kbTrackPoint = it; onChanged()
+                        })
+                    },
+                    supportingContent = {
+                        Column {
+                            Text("Sensitivity · ${"%.1f".format(nubSpeed)}×  (ThinkPad layout too)")
+                            androidx.compose.material3.Slider(
+                                value = nubSpeed, valueRange = 0.3f..3f,
+                                onValueChange = { nubSpeed = (it * 10).roundToInt() / 10f; Settings.trackPointSpeed = nubSpeed },
+                            )
+                        }
+                    },
+                ) { Text("TrackPoint on Laptop and Full layouts (tap to click, hold Fn to scroll)") }
             }
         }
     }
@@ -1338,33 +1363,61 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
     // "Short" screens (phones in landscape) get the side-by-side layout; tablets have room for the tall one.
     val landscapeTop = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 520
     // Profile picker. In landscape it shares the toolbar row, leaving the height to the clickpad.
-    val profileChips: @Composable (Modifier) -> Unit = { m ->
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = m) {
-            items(dev.padbridge.RemoteProfile.entries) { p ->
-                androidx.compose.material3.FilterChip(
-                    selected = p == profile,
-                    onClick = { profile = p; Settings.remoteProfile = p },
-                    label = { Text(p.label) },
-                    leadingIcon = {
-                        Icon(
-                            when (p) {
-                                dev.padbridge.RemoteProfile.ANDROID_TV, dev.padbridge.RemoteProfile.APPLE_TV -> Icons.Rounded.Tv
-                                dev.padbridge.RemoteProfile.MAC -> Icons.Rounded.LaptopMac
-                                dev.padbridge.RemoteProfile.PC -> Icons.Rounded.DesktopWindows
-                                dev.padbridge.RemoteProfile.SLIDES -> Icons.Rounded.Slideshow
-                            }, null, Modifier.size(18.dp),
-                        )
-                    },
-                )
+    fun profileIcon(p: dev.padbridge.RemoteProfile) = when (p) {
+        dev.padbridge.RemoteProfile.ANDROID_TV, dev.padbridge.RemoteProfile.APPLE_TV -> Icons.Rounded.Tv
+        dev.padbridge.RemoteProfile.MAC -> Icons.Rounded.LaptopMac
+        dev.padbridge.RemoteProfile.PC -> Icons.Rounded.DesktopWindows
+        dev.padbridge.RemoteProfile.SLIDES -> Icons.Rounded.Slideshow
+    }
+    // One chip that opens a menu, instead of a row of every profile.
+    val profilePicker: @Composable () -> Unit = {
+        var open by remember { mutableStateOf(false) }
+        Box {
+            androidx.compose.material3.FilterChip(
+                selected = true,
+                onClick = { open = true },
+                label = { Text(profile.label) },
+                leadingIcon = { Icon(profileIcon(profile), null, Modifier.size(18.dp)) },
+                trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, "Change remote", Modifier.size(18.dp)) },
+            )
+            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false },
+                shape = RoundedCornerShape(16.dp), containerColor = glassMenuColor()) {
+                dev.padbridge.RemoteProfile.entries.forEach { p ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(p.label) },
+                        leadingIcon = { Icon(profileIcon(p), null) },
+                        trailingIcon = if (p == profile) ({ Icon(Icons.Rounded.Check, null) }) else null,
+                        onClick = { open = false; profile = p; Settings.remoteProfile = p },
+                    )
+                }
             }
         }
     }
+    val tv = profile == dev.padbridge.RemoteProfile.ANDROID_TV
+    var swipe by remember { mutableStateOf(Settings.remoteSwipe) }
+    val extras = (if (profile == dev.padbridge.RemoteProfile.SLIDES) emptyList() else listOf(prev, next)) + profile.extras(os)
     // On tablets the remote stays a remote-sized column in the middle instead of spreading edge to edge.
     val remoteWidth = if (landscapeTop) Modifier.fillMaxWidth() else Modifier.wrapContentWidth().widthIn(max = 600.dp).fillMaxWidth()
     Column(Modifier.fillMaxSize().then(remoteWidth).padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             if ((hid.connected && !LocalTopBarStatus.current) || aod) ConnectionChip(hid, aod)
-            if (landscapeTop) profileChips(Modifier.weight(1f).padding(horizontal = 8.dp)) else Spacer(Modifier.weight(1f))
+            Box(Modifier.padding(horizontal = 8.dp)) { profilePicker() }
+            Spacer(Modifier.weight(1f))
+            if (tv) {
+                // Android TV keeps its extras in a menu so the remote itself stays clean.
+                androidx.compose.material3.IconToggleButton(checked = swipe, onCheckedChange = {
+                    swipe = it; Settings.remoteSwipe = it
+                }) { Icon(if (swipe) Icons.Rounded.Swipe else Icons.Rounded.Gamepad, if (swipe) "Swipe pad (tap for D-pad)" else "D-pad (tap for swipe pad)") }
+                OverflowMenu(extras.map { b ->
+                    MenuEntry(b.label, when (b.label) {
+                        "Previous" -> Icons.Rounded.SkipPrevious; "Next" -> Icons.Rounded.SkipNext
+                        "Rewind" -> Icons.Rounded.FastRewind; "Fast fwd" -> Icons.Rounded.FastForward
+                        "Menu" -> Icons.Rounded.Menu; else -> Icons.Rounded.Tv
+                    }) { dev.padbridge.RemoteSender.tap(b.out); dev.padbridge.Haptics.tick() }
+                } + MenuEntry("Phone volume keys control the TV", Icons.Rounded.Vibration, checked = volKeys, divider = true) {
+                    volKeys = !volKeys; Settings.remoteVolumeKeys = volKeys
+                })
+            }
             AodButton(aod, onAod)
             FilledTonalIconToggleButton(
                 checked = kbOpen, onCheckedChange = { kbOpen = it },
@@ -1374,14 +1427,15 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
 
         NotConnectedBanner(hid, onGoConnect, Modifier.padding(bottom = 8.dp))
 
-        if (!landscapeTop) profileChips(Modifier.fillMaxWidth())
-
         AnimatedVisibility(kbOpen) {
-            AndroidView({ ime }, Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                AndroidView({ ime }, Modifier.weight(1f).height(48.dp))
+                VoiceTypeButton()
+            }
         }
 
         if (profile == dev.padbridge.RemoteProfile.ANDROID_TV) {
-            GoogleTvRemote(aod, landscapeTop, back, home, Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp))
+            GoogleTvRemote(aod, landscapeTop, swipe, back, home, Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp))
         } else {
         // Siri Remote-style: a large clickpad, then a quiet two-column grid of identical round keys
         // (Back | Home, Play | volume rocker, Mute). No panel, no colored keys: the controls float on the page.
@@ -1460,8 +1514,7 @@ fun RemoteScreen(hid: HidUi, osVersion: Int, aod: Boolean = false, onAod: () -> 
         }
 
         // Profile extras. Previous / next live here (slides already step with the clickpad's left / right).
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-            val extras = (if (profile == dev.padbridge.RemoteProfile.SLIDES) emptyList() else listOf(prev, next)) + profile.extras(os)
+        if (!tv) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
             items(extras) { b ->
                 Surface(
                     onClick = { dev.padbridge.RemoteSender.tap(b.out); dev.padbridge.Haptics.tick() },
@@ -1538,14 +1591,14 @@ private fun RemoteKey(
 }
 
 /**
- * Google TV app-style remote for Android TV: power and a D-pad / swipe switch on top, the D-pad (or a swipe pad)
- * in the middle, then Back, Home and Assistant, and volume, mute and play / pause.
+ * Google TV app-style remote for Android TV: the D-pad (or a swipe pad, switched from the toolbar), then two rows:
+ * power, Back, Home and Assistant; mute, volume and play / pause. Everything else is in the toolbar's menu.
  */
 @Composable
 private fun GoogleTvRemote(
-    aod: Boolean, landscape: Boolean, back: dev.padbridge.RemoteButton, home: dev.padbridge.RemoteButton, modifier: Modifier,
+    aod: Boolean, landscape: Boolean, swipe: Boolean, back: dev.padbridge.RemoteButton, home: dev.padbridge.RemoteButton,
+    modifier: Modifier,
 ) {
-    var swipe by remember { mutableStateOf(Settings.remoteSwipe) }
     val power = remember { dev.padbridge.RemoteButton("Power", dev.padbridge.RemoteOut.Consumer(Keys.C_POWER)) }
     val assistant = remember {
         dev.padbridge.RemoteButton("Assistant", dev.padbridge.RemoteOut.Consumer(dev.padbridge.RemoteProfile.AC_SEARCH))
@@ -1555,22 +1608,6 @@ private fun GoogleTvRemote(
     val key = if (landscape) 52.dp else 60.dp
     val gap = if (landscape) 12.dp else 18.dp
 
-    val modeSwitch: @Composable () -> Unit = {
-        Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-            listOf("D-pad" to Icons.Rounded.Gamepad, "Swipe" to Icons.Rounded.Swipe).forEachIndexed { i, (label, icon) ->
-                ToggleButton(
-                    checked = swipe == (i == 1),
-                    onCheckedChange = { swipe = i == 1; Settings.remoteSwipe = swipe },
-                    shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    else ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                ) {
-                    Icon(icon, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(label)
-                }
-            }
-        }
-    }
     val pad: @Composable (Modifier) -> Unit = { m ->
         androidx.compose.foundation.layout.BoxWithConstraints(m, contentAlignment = Alignment.Center) {
             if (swipe) AndroidView(
@@ -1585,7 +1622,9 @@ private fun GoogleTvRemote(
     }
     val buttons: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(gap), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Two even rows, four keys wide each (the rocker counts as two).
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                RemoteKey(power, Icons.Rounded.PowerSettingsNew, aod, key)
                 RemoteKey(back, Icons.AutoMirrored.Rounded.ArrowBack, aod, key)
                 RemoteKey(home, Icons.Rounded.Home, aod, key)
                 RemoteKey(assistant, Icons.Rounded.Mic, aod, key)
@@ -1593,17 +1632,12 @@ private fun GoogleTvRemote(
             Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
                 RemoteKey(mute, Icons.AutoMirrored.Rounded.VolumeOff, aod, key)
                 VolumeRocker(aod, key * 2 + gap, key, horizontal = true)
+                RemoteKey(play, Icons.Rounded.PlayArrow, aod, key, secondIcon = Icons.Rounded.Pause)
             }
-            RemoteKey(play, Icons.Rounded.PlayArrow, aod, key, secondIcon = Icons.Rounded.Pause)
         }
     }
 
     Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            RemoteKey(power, Icons.Rounded.PowerSettingsNew, aod, 48.dp)
-            Spacer(Modifier.weight(1f))
-            modeSwitch()
-        }
         if (landscape) {
             Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 pad(Modifier.weight(1f).fillMaxHeight())
@@ -1615,6 +1649,32 @@ private fun GoogleTvRemote(
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { buttons() }
         }
     }
+}
+
+/**
+ * Voice typing: the phone's speech recognizer (Google's voice input) listens, and what it heard is typed on the
+ * computer or TV as keystrokes. Handy for TV search boxes. No microphone permission: the recognizer app holds it.
+ */
+@Composable
+private fun VoiceTypeButton() {
+    val ctx = LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { r ->
+        val text = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (r.resultCode == android.app.Activity.RESULT_OK && !text.isNullOrBlank()) {
+            val skipped = HidManager.type(text)
+            if (skipped > 0) android.widget.Toast.makeText(ctx, "$skipped characters can't be typed", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    FilledTonalIconButton(onClick = {
+        val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak to type")
+        try { launcher.launch(i) } catch (_: android.content.ActivityNotFoundException) {
+            android.widget.Toast.makeText(ctx, "No voice input on this phone", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }, modifier = Modifier.padding(start = 8.dp)) { Icon(Icons.Rounded.KeyboardVoice, "Voice typing") }
 }
 
 /** Siri Remote-style volume rocker: one tall pill, + on top and − below. */
@@ -1706,6 +1766,37 @@ fun ConnectionChip(hid: HidUi, aod: Boolean) {
  * Shown on input screens while nothing is connected: one tap reconnects to the last computer,
  * or jumps to the Connect tab. Hidden while connected.
  */
+/**
+ * Shown once the phone's own three-finger gesture (usually a screenshot swipe) cancelled a trackpad gesture: the
+ * phone takes three-finger swipes first, so PadBridge's three-finger gestures can't work until it's turned off.
+ */
+@Composable
+fun ScreenshotGestureNotice(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val show by dev.padbridge.SystemGestureNotice.show
+    AnimatedVisibility(show, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.tertiaryContainer, modifier = modifier.fillMaxWidth()) {
+            Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+                Text("Your phone took that three-finger swipe", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Its own three-finger screenshot gesture is on, so three-finger swipes and taps on the trackpad get " +
+                        "cancelled. Turn it off in the phone's Settings (often under Gestures, Motions and gestures or " +
+                        "Advanced features) to use them here.",
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 2.dp, end = 8.dp),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    androidx.compose.material3.TextButton(onClick = {
+                        try { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS)) } catch (_: Exception) {}
+                    }) { Text("Open Settings") }
+                    androidx.compose.material3.TextButton(onClick = {
+                        dev.padbridge.SystemGestureNotice.show.value = false; Settings.screenshotNoticeDismissed = true
+                    }) { Text("Got it") }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun NotConnectedBanner(hid: HidUi, onGoConnect: () -> Unit, modifier: Modifier = Modifier) {
     val last = remember(hid.version) { HidManager.lastHostDevice() }

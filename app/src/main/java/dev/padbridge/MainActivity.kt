@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
 
     override fun onResume() {
         super.onResume()
+        dndResumed = true; applyDnd()
         HidManager.addListener(this)
         onHidChanged()
         if (Perms.hasConnect(this)) { HidService.start(this); HidManager.restart(this) }
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
     }
 
     override fun onPause() {
+        dndResumed = false; applyDnd()
         HidManager.removeListener(this)
         super.onPause()
     }
@@ -144,6 +146,41 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
     }
 
     private var immersive = false
+
+    // ------------------------------------------------------------------ Do Not Disturb in full screen
+
+    private var dndWanted = false
+    private var dndResumed = false
+    /** The filter we replaced, while our Do Not Disturb is on; null when we haven't changed it. */
+    private var dndPrevious: Int? = null
+
+    fun dndAccess(): Boolean =
+        (getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager).isNotificationPolicyAccessGranted
+
+    /** Full screen asks for Do Not Disturb; it's only on while PadBridge is in front. */
+    fun setDndWanted(on: Boolean) { dndWanted = on; applyDnd() }
+
+    fun applyDnd() {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val want = dndWanted && dndResumed && Settings.fullscreenDnd && nm.isNotificationPolicyAccessGranted
+        try {
+            if (want && dndPrevious == null) {
+                val cur = nm.currentInterruptionFilter
+                // Already in Do Not Disturb (the user's own): leave it alone.
+                if (cur == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
+                    nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+                    dndPrevious = cur
+                }
+            } else if (!want && dndPrevious != null) {
+                // Only undo it if it's still ours: the user may have changed it from quick settings meanwhile.
+                if (nm.isNotificationPolicyAccessGranted &&
+                    nm.currentInterruptionFilter == android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY) {
+                    nm.setInterruptionFilter(dndPrevious!!)
+                }
+                dndPrevious = null
+            }
+        } catch (_: SecurityException) { dndPrevious = null }
+    }
 
     /** Hide status and navigation bars (swipe from an edge shows them briefly). */
     fun setBarsHidden(on: Boolean) {

@@ -82,6 +82,44 @@ private fun SwitchRow(title: String, subtitle: String?, index: Int, count: Int, 
     ) { Text(title) }
 }
 
+/** Do Not Disturb while full screen. Needs the user to grant Do Not Disturb access once. */
+@Composable
+private fun DndRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val activity = ctx as? dev.padbridge.MainActivity
+    var on by remember { mutableStateOf(Settings.fullscreenDnd) }
+    var access by remember { mutableStateOf(activity?.dndAccess() ?: false) }
+    // Coming back from the system's access screen.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            if (ev == androidx.lifecycle.Lifecycle.Event.ON_RESUME) access = activity?.dndAccess() ?: false
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    fun openAccess() = try {
+        ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+    } catch (_: Exception) {}
+    SegmentedListItem(
+        onClick = { on = !on; Settings.fullscreenDnd = on; if (on && !access) openAccess() },
+        shapes = ListItemDefaults.segmentedShapes(4, 5),
+        colors = segColors(),
+        supportingContent = {
+            Text(
+                if (on && !access) "Tap to allow Do Not Disturb access for PadBridge"
+                else "Silences notifications while the app bars are hidden (full screen, full display, gamepad). " +
+                    "Your own Do Not Disturb is left alone."
+            )
+        },
+        trailingContent = {
+            Switch(checked = on, onCheckedChange = {
+                on = it; Settings.fullscreenDnd = it; if (it && !access) openAccess()
+            })
+        },
+    ) { Text("Do Not Disturb in full screen") }
+}
+
 @Composable
 private fun SliderRow(
     title: String, index: Int, count: Int, initial: Float,
@@ -208,6 +246,15 @@ fun SettingsScreen(
                     }
                     item {
                         Text(
+                            "Three-finger gestures not working? Many phones (Samsung, Xiaomi, OnePlus, Oppo, Vivo, Motorola) " +
+                                "take three-finger swipes for screenshots first. Turn that off in the phone's own Settings, " +
+                                "under Gestures or Advanced features.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    item {
+                        Text(
                             "Each gesture sends a click, media key or the keyboard shortcut ${os.label} uses for that action. " +
                                 "DeX style: three-finger tap = Back, four-finger tap = launcher, three-finger swipes switch apps.",
                             style = MaterialTheme.typography.bodySmall,
@@ -253,8 +300,9 @@ fun SettingsScreen(
                     }
                     item {
                         SwitchRow("Hide app bars on input screens", "Trackpad, keyboard and air mouse use the whole height. Back shows them again.",
-                            3, 4, Settings.fullscreenInput) { Settings.fullscreenInput = it }
+                            3, 5, Settings.fullscreenInput) { Settings.fullscreenInput = it }
                     }
+                    item { DndRow() }
                 }
                 SettingsPage.APPEARANCE -> {
                     item { Gap(8) }

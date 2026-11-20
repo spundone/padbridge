@@ -145,9 +145,9 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
 
     LaunchedEffect(dest, settingsOpen, fullscreen, aodActive, fullDisplayActive) {
         activity.setGamepadMode(dest == Dest.GAMEPAD && !settingsOpen)
-        activity.setBarsHidden(
-            !settingsOpen && (dest == Dest.GAMEPAD || (fullscreen && inputDest) || aodActive || fullDisplayActive)
-        )
+        val hidden = !settingsOpen && (dest == Dest.GAMEPAD || (fullscreen && inputDest) || aodActive || fullDisplayActive)
+        activity.setBarsHidden(hidden)
+        activity.setDndWanted(hidden)
     }
     // Seamless: once a computer connects while you're on the Connect tab, go straight to the trackpad.
     var wasConnected by remember { mutableStateOf(hid.connected) }

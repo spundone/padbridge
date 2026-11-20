@@ -195,6 +195,11 @@ object Settings {
         set(v) = putBool("kbFlick", v)
 
     /** TrackPoint on the Laptop and Full keyboard layouts. */
+    /** TrackPoint speed multiplier (on top of the pointer speed). */
+    var trackPointSpeed: Float
+        get() = float("trackPointSpeed", 1.0f)
+        set(v) = putFloat("trackPointSpeed", v)
+
     var kbTrackPoint: Boolean
         get() = bool("kbTrackPoint", true)
         set(v) = putBool("kbTrackPoint", v)
@@ -380,6 +385,16 @@ object Settings {
         set(v) = putBool("showAll", v)
 
     /** Trackpad, keyboard and air mouse hide the app bars and system bars. */
+    /** Turn on Do Not Disturb (priority only) while the app bars are hidden. */
+    var fullscreenDnd: Boolean
+        get() = bool("fullscreenDnd", false)
+        set(v) = putBool("fullscreenDnd", v)
+
+    /** The "your phone's three-finger screenshot swipe took that gesture" notice was dismissed. */
+    var screenshotNoticeDismissed: Boolean
+        get() = bool("screenshotNoticeDismissed", false)
+        set(v) = putBool("screenshotNoticeDismissed", v)
+
     var fullscreenInput: Boolean
         get() = bool("fullscreen", false)
         set(v) = putBool("fullscreen", v)

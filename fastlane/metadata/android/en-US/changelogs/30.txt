@@ -1,0 +1,3 @@
+Fixed: three- and four-finger gestures could crash when the phone's own screenshot swipe took the touch. A notice now explains how to turn that gesture off.
+New: voice typing on the remote, Do Not Disturb in full screen, TrackPoint sensitivity slider.
+Android TV remote is cleaner: one remote picker, D-pad/swipe switch in the toolbar, extras in the menu.

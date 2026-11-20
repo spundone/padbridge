@@ -650,10 +650,10 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         // Scroll with the middle TrackPoint button held, or Fn on layouts without the buttons.
         if (middleHeld || modHeld.entries.any { it.key.fn && it.value }) {
             middleScrolled = true
-            val rate = 0.35f * push.pow(1.3f) // notches per second
+            val rate = 0.35f * push.pow(1.3f) * Settings.trackPointSpeed // notches per second
             HidManager.scroll(-dy / (d * density) * rate * dt, dx / (d * density) * rate * dt)
         } else {
-            val speed = 16f * push.pow(1.5f) * Settings.pointerSpeed // counts per second
+            val speed = 16f * push.pow(1.5f) * Settings.pointerSpeed * Settings.trackPointSpeed // counts per second
             HidManager.move(dx / (d * density) * speed * dt, dy / (d * density) * speed * dt)
         }
     }

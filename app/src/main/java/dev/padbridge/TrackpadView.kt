@@ -52,6 +52,11 @@ object Typing {
  * Mappable (see [GestureSlot]): 2/3/4-finger taps, press-and-hold, 2-finger horizontal swipe,
  *            rotate, 3- and 4-finger swipes, edge swipes. Optional 3-finger drag.
  */
+/** Set when the phone's own multi-finger gesture took a trackpad gesture; the input screens show a notice. */
+object SystemGestureNotice {
+    val show = androidx.compose.runtime.mutableStateOf(false)
+}
+
 class TrackpadView(ctx: Context) : View(ctx), Routable {
 
     private enum class Mode { NONE, MOVE, SCROLL, NAV, PINCH, ROTATE, SWIPE, THREE_DRAG, EDGE_SCROLL_V, EDGE_SCROLL_H, EDGE_SWIPE, DONE }
@@ -328,8 +333,14 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
             MotionEvent.ACTION_DOWN -> { rejected.clear(); passed.clear() }
             MotionEvent.ACTION_CANCEL -> {
                 rejected.clear()
-                val had = passed.isNotEmpty(); passed.clear()
-                return if (had) rebuildOrSame(e, MotionEvent.ACTION_CANCEL) else null
+                // The system took the gesture (e.g. a phone's own three-finger screenshot swipe). Pass the cancel on
+                // as is: building a copy after clearing [passed] made an event with no pointers, which crashed.
+                val had = passed.isNotEmpty()
+                // Three or more fingers cancelled by the system: almost always the phone's own three-finger
+                // screenshot swipe (Samsung, Xiaomi, OnePlus, Oppo, Vivo, Motorola...). Tell the user once.
+                if (passed.size >= 3 && !Settings.screenshotNoticeDismissed) SystemGestureNotice.show.value = true
+                passed.clear()
+                return if (had) e else null
             }
         }
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
@@ -379,8 +390,9 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
     }
 
     /** A copy of [e] with only the [passed] pointers, [action] applying to pointer [pid]. */
-    private fun rebuild(e: MotionEvent, action: Int, pid: Int): MotionEvent {
+    private fun rebuild(e: MotionEvent, action: Int, pid: Int): MotionEvent? {
         val keep = (0 until e.pointerCount).filter { e.getPointerId(it) in passed }
+        if (keep.isEmpty()) return null // MotionEvent.obtain throws for zero pointers
         val props = Array(keep.size) { MotionEvent.PointerProperties().also { p -> e.getPointerProperties(keep[it], p) } }
         val coords = Array(keep.size) { MotionEvent.PointerCoords().also { c -> e.getPointerCoords(keep[it], c) } }
         val at = keep.indexOfFirst { e.getPointerId(it) == pid }
