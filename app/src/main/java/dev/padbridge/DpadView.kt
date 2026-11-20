@@ -109,7 +109,7 @@ class DpadView(ctx: Context) : View(ctx) {
                                 accY -= if (accY > 0) swipeStep else -swipeStep; r
                             }
                             RemoteSender.tap(RemoteOut.Key(d.code))
-                            flash = d; Haptics.tick()
+                            flash = d; Haptics.soft(0.45f) // a light detent per step, like the keyboard's
                             postDelayed({ flash = null; invalidate() }, 120)
                         }
                     }

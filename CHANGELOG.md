@@ -9,6 +9,36 @@ undated.
 
 ## [Unreleased]
 
+## [1.6.0] – 2026-11-20
+
+### Changed
+- Region screenshots with the trackpad: after Cmd+Shift+4 (or 5) on a Mac, Win+Shift+S on Windows or Print Screen
+  on Linux, from the keyboard, a shortcut chip or the Screenshot gesture, the next one-finger touch on the trackpad
+  holds the click: drag to select, lift to take it.
+- Keyboard shortcuts (anything with Cmd, Ctrl, Alt or Windows held) no longer count as typing, so palm rejection
+  doesn't ignore the trackpad right after one.
+
+### Added
+- **Word suggestions on PadBridge's own keyboard** (keyboard options): a strip above the keys offers the three most
+  likely words as you type; tap one to replace the word on the computer. Completions come from a built-in list of
+  the 40,000 most common English words, corrections from your phone's spell checker. Optionally they also learn the
+  words you type, kept only on this phone (off by default, with "Forget learned words").
+- **Drawing tablet** (trackpad ⋮ › Drawing tablet): an area of the phone maps onto the computer's whole screen,
+  like a Wacom. Pick the display's ratio (16:9, 16:10, 3:2, 4:3, 21:9, 32:9, portrait, custom, or stretch over the
+  whole pad), then move and resize the area. An S Pen hovers (the pointer follows above the glass), presses with
+  pressure, right-clicks with its button and erases with the eraser end. A finger either draws, or hovers (move to
+  point, tap to click, double-tap and hold to drag, two-finger tap for right click). Sent as a pen with pressure
+  (Windows Ink, Linux) or an absolute mouse (macOS); Auto picks by computer type. Turning it on needs a one-time
+  re-pair; in Control this phone it works right away.
+- Subtle haptics on the keyboard and TrackPoint: a light detent for each space bar cursor step, a tick as a flick
+  switches to the shifted character, a firmer click when a modifier locks; on the TrackPoint a soft touch, faint
+  detents as you push harder, a ratchet tick per scroll notch and a tick for tap-to-click. They use the phone's
+  lightest vibration (low tick) where the motor supports it, and follow the Haptic feedback setting.
+- The same feel on the other screens: a ratchet tick per wheel notch while scrolling on the trackpad (fainter while
+  it coasts) and on the air mouse wheel, a soft tick per zoom step and when tap-and-drag picks something up, light
+  detents for each step on the remote's clickpad and swipe pad, and on the gamepad a faint tick as a stick leaves
+  center and a halfway detent on the triggers.
+
 ## [1.5.0] – 2026-11-20
 
 ### Added

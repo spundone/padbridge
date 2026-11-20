@@ -729,7 +729,10 @@ private fun AboutSection(activity: MainActivity) {
                 "PadBridge is licensed under the Apache License 2.0 and uses:\n\n" +
                     "• Jetpack Compose, Material 3, AndroidX Activity and Core (Google) — Apache License 2.0\n" +
                     "• Material Icons (Google) — Apache License 2.0\n" +
-                    "• Kotlin standard library and coroutines (JetBrains) — Apache License 2.0\n\n" +
+                    "• Kotlin standard library and coroutines (JetBrains) — Apache License 2.0\n" +
+                    "• English word list for keyboard suggestions: from wordfreq by Robyn Speer, whose data is " +
+                    "licensed CC BY-SA 4.0 (creativecommons.org/licenses/by-sa/4.0); the list in PadBridge is " +
+                    "shared under the same license\n\n" +
                     "Full license texts: apache.org/licenses/LICENSE-2.0"
             )
         },

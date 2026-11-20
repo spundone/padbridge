@@ -68,6 +68,29 @@ object Haptics {
         } catch (_: Exception) {}
     }
 
+    /**
+     * A very light primitive (Android 11+ on phones whose motor supports it), scaled by [scale] 0..1; falls back to a
+     * tick. For textures: space bar cursor steps, TrackPoint detents and scroll notches.
+     */
+    fun soft(scale: Float = 0.4f) {
+        if (!Settings.haptics) return
+        val v = vibrator ?: return
+        if (!v.hasVibrator()) return
+        try {
+            val low = Build.VERSION.SDK_INT >= 31 &&
+                v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+            val tick = Build.VERSION.SDK_INT >= 30 &&
+                v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_TICK)
+            val sc = scale.coerceIn(0f, 1f)
+            if (low) {
+                v.vibrate(VibrationEffect.startComposition().addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, sc).compose())
+            } else if (tick) {
+                v.vibrate(VibrationEffect.startComposition().addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, sc).compose())
+            } else if (Build.VERSION.SDK_INT >= 29) v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+            else v.vibrate(VibrationEffect.createOneShot(5, (255 * scale).toInt().coerceIn(1, 255)))
+        } catch (_: Exception) {}
+    }
+
     @Suppress("UNUSED_PARAMETER")
     fun tick(view: View? = null) = play(VibrationEffect.EFFECT_TICK, 8, 60)
     fun click() = play(VibrationEffect.EFFECT_CLICK, 14, 140)

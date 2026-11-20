@@ -110,6 +110,9 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
     private val nubC = PointF()
     private var nubR = 0f
     private var nubId = -1
+    /** Haptics: the last push detent felt, and scroll notches since the last tick. */
+    private var nubDetent = 0
+    private var nubNotch = 0f
     private val nubOrigin = PointF()
     private val nubAt = PointF()
     private var nubDown = 0L
@@ -452,7 +455,8 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
             if (code == 0) return
             heldCodes[k] = code
             modHeld.filterValues { it }.keys.forEach { modUsed.add(it) }
-            Typing.keyPressed()
+            Typing.keyPressed(activeMods())
+            Predict.key(code, activeMods(), HidManager.leds and 0x02 != 0)
         }
         Haptics.tick()
         push()
@@ -467,6 +471,8 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
                 ModState.ONESHOT -> ModState.LOCKED
                 ModState.LOCKED -> ModState.OFF
             }
+            // Locking a modifier (second tap) gets a firmer click, like a caps lock clunk.
+            if (modState[k] == ModState.LOCKED) Haptics.click()
             push()
         } else {
             if (heldCodes.remove(k) == null) return
@@ -517,6 +523,8 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
                 if (Settings.palmRejection && Typing.isPalm(e, i, resources.displayMetrics.ydpi)) return true
                 if (nubId < 0 && nubHit(x, y)) {
                     nubId = pid; nubOrigin.set(x, y); nubAt.set(x, y); nubDown = e.eventTime; nubMax = 0f
+                    nubDetent = 0; nubNotch = 0f
+                    Haptics.soft(0.3f)
                     nubLast = System.nanoTime()
                     HidManager.resetScroll()
                     postOnAnimation(nubLoop)
@@ -536,7 +544,7 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
                     val p = Pending(k, x, y)
                     pending[pid] = p
                     if (k.code != Keys.SPACE) postDelayed(p.hold, HOLD_MS)
-                    Typing.keyPressed()
+                    Typing.keyPressed(activeMods())
                     Haptics.tick()
                 } else {
                     pointerKeys[pid] = k
@@ -580,12 +588,15 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
             while (p.lastY - y >= vstep) { p.lastY -= vstep; arrow(Keys.UP) }
         } else {
             val up = p.y0 - y
+            val was = p.flicked
             p.flicked = up > max(16 * density, unitH * 0.45f) && up > abs(x - p.x0)
+            if (p.flicked != was) Haptics.soft(0.6f) // felt as it switches to (or back from) the shifted character
         }
     }
 
     private fun arrow(code: Int) {
         tapCode(code, 0)
+        Haptics.soft(0.35f) // a light detent per character the cursor moves
     }
 
     /** Held still: becomes an ordinary held key, so the computer's key repeat works. */
@@ -619,8 +630,9 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
     private fun tapCode(code: Int, extra: Int) {
         modHeld.filterValues { it }.keys.forEach { modUsed.add(it) }
         push()
+        Predict.key(code, activeMods() or extra, HidManager.leds and 0x02 != 0)
         HidManager.tap(code, extra)
-        Typing.keyPressed()
+        Typing.keyPressed(activeMods() or extra)
         if (heldCodes.isEmpty()) {
             var changed = false
             for (e in modState.entries) if (e.value == ModState.ONESHOT) { e.setValue(ModState.OFF); changed = true }
@@ -646,6 +658,10 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         val d = hypot(dx, dy) / density
         nubMax = max(nubMax, d)
         val push = d - NUB_DEAD_DP
+        // Faint detents as the push gets firmer (every 6 dp), so you can feel how hard you're pushing.
+        val detent = (max(0f, push) / 6f).toInt().coerceAtMost(4)
+        if (detent > nubDetent) Haptics.soft(0.2f + 0.08f * detent)
+        nubDetent = detent
         if (push <= 0f || d == 0f) return
         // A modifier held while using the stick was used (Fn to scroll, Shift-select): it doesn't turn one-shot.
         modHeld.filterValues { it }.keys.forEach { modUsed.add(it) }
@@ -654,6 +670,9 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
             middleScrolled = true
             val rate = 0.35f * push.pow(1.3f) * Settings.trackPointSpeed // notches per second
             HidManager.scroll(-dy / (d * density) * rate * dt, dx / (d * density) * rate * dt)
+            // A soft tick per wheel notch scrolled, like a ratcheting wheel.
+            nubNotch += rate * dt
+            if (nubNotch >= 1f) { nubNotch -= 1f; Haptics.soft(0.3f) }
         } else {
             val speed = 16f * push.pow(1.5f) * Settings.pointerSpeed * Settings.trackPointSpeed // counts per second
             HidManager.move(dx / (d * density) * speed * dt, dy / (d * density) * speed * dt)
@@ -664,7 +683,9 @@ class KeyboardView(ctx: Context) : View(ctx), Routable {
         nubId = -1
         removeCallbacks(nubLoop)
         // A quick tap on the stick clicks, like ThinkPad's press-to-select.
-        if (t - nubDown < 180 && nubMax < 4f && !middleHeld && !middleScrolled) HidManager.click(TrackpadView.BTN_LEFT)
+        if (t - nubDown < 180 && nubMax < 4f && !middleHeld && !middleScrolled) {
+            HidManager.click(TrackpadView.BTN_LEFT); Haptics.tick()
+        }
         if (!middleHeld) middleScrolled = false
     }
 

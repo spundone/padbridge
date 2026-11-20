@@ -1,0 +1,4 @@
+New: drawing tablet. An area of the phone maps to the whole screen, with S Pen hover and pressure, sized to your display's ratio.
+New: word suggestions on PadBridge's keyboard.
+New: subtle haptics for scrolling, the TrackPoint, space-bar cursor and more.
+Cmd+Shift+4 then drag on the trackpad takes a region screenshot.

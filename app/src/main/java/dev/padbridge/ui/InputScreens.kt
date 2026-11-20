@@ -3,6 +3,8 @@ package dev.padbridge.ui
 import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.rounded.Gamepad
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.KeyboardVoice
@@ -261,7 +263,7 @@ private fun quickKeys(os: HostOs): List<Chip> {
 fun TrackpadScreen(
     hid: HidUi, osVersion: Int, fullscreen: Boolean = false, onToggleFullscreen: () -> Unit = {},
     onAod: () -> Unit = {}, aod: Boolean = false, onFullDisplay: () -> Unit = {},
-    onGoConnect: () -> Unit = {}, onAirMouse: () -> Unit = {},
+    onGoConnect: () -> Unit = {}, onAirMouse: () -> Unit = {}, onTablet: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val os = remember(osVersion) { Settings.hostOs }
@@ -286,8 +288,9 @@ fun TrackpadScreen(
         MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
             if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
         MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
+        MenuEntry("Drawing tablet", Icons.Rounded.Draw, action = onTablet),
     ) + (if (dev.padbridge.BuildConfig.ROOT_FEATURES) listOf(
-        MenuEntry("Floating trackpad over other apps", Icons.Rounded.OpenInFull) { dev.padbridge.FloatingPadService.start(ctx) },
+        MenuEntry("Floating trackpad over other apps", androidx.compose.material.icons.Icons.Rounded.Layers) { dev.padbridge.FloatingPadService.start(ctx) },
     ) else emptyList()) + listOf(
         MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
         MenuEntry("Auto-rotate", Icons.Rounded.ScreenRotation, checked = orientation == 0, divider = true) {
@@ -506,13 +509,14 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
     val flick = remember(cfg) { Settings.kbFlick }
     val spaceCursor = remember(cfg) { Settings.kbSpaceCursor }
     val trackPoint = remember(cfg) { Settings.kbTrackPoint }
+    val predictOn = remember(cfg) { Settings.kbPredict }
 
     val freePad = remember(cfg) { resizable && Settings.kbFreePad }
     val laptop = rememberLaptopDeck(cfg)
     val tablet = isTablet()
 
     @Composable
-    fun Keys(mod: Modifier) = AndroidView(
+    fun KeysView(mod: Modifier) = AndroidView(
         factory = { KeyboardView(it) },
         update = { v ->
             hid.version; aod
@@ -525,6 +529,12 @@ private fun KeyboardArea(hid: HidUi, os: HostOs, cfg: Int, resizable: Boolean, m
         },
         modifier = mod,
     )
+
+    @Composable
+    fun Keys(mod: Modifier) = Column(mod) {
+        if (predictOn) SuggestionStrip()
+        KeysView(Modifier.weight(1f).fillMaxWidth())
+    }
 
     if (laptop) {
         LaptopDeck(hid, modifier, cfg) { m -> Keys(m) }
@@ -833,6 +843,8 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
     var learning by remember { mutableStateOf(Settings.imeLearning) }
     var trackPoint by remember { mutableStateOf(Settings.kbTrackPoint) }
     var nubSpeed by remember { mutableStateOf(Settings.trackPointSpeed) }
+    var predict by remember { mutableStateOf(Settings.kbPredict) }
+    var predictLearn by remember { mutableStateOf(Settings.kbPredictLearn) }
     var freePadOn by remember { mutableStateOf(Settings.kbFreePad) }
     val tabletLand = isTablet() && landscape
     var laptop by remember { mutableStateOf(Settings.kbLaptop(landscape, tabletLand)) }
@@ -998,28 +1010,28 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
             item { Text("Options", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) }
             item {
-                SheetSwitch("Trackpad in free space", freePadOn, 0, 8) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
+                SheetSwitch("Trackpad in free space", freePadOn, 0, 10) { freePadOn = it; Settings.kbFreePad = it; onChanged() }
             }
             item {
-                SheetSwitch("Shortcut and media rows", rows, 1, 8) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
+                SheetSwitch("Shortcut and media rows", rows, 1, 10) { rows = it; Settings.setKbShowRows(landscape, it); onChanged() }
             }
             item {
-                SheetSwitch("Key preview bubbles", preview, 2, 8) { preview = it; Settings.kbPreview = it; onChanged() }
+                SheetSwitch("Key preview bubbles", preview, 2, 10) { preview = it; Settings.kbPreview = it; onChanged() }
             }
             item {
-                SheetSwitch("Flick up on a key for its shifted character (! for 1, A for a)", flick, 3, 8) {
+                SheetSwitch("Flick up on a key for its shifted character (! for 1, A for a)", flick, 3, 10) {
                     flick = it; Settings.kbFlick = it; onChanged()
                 }
             }
             item {
-                SheetSwitch("Drag the space bar to move the cursor", spaceCursor, 4, 8) {
+                SheetSwitch("Drag the space bar to move the cursor", spaceCursor, 4, 10) {
                     spaceCursor = it; Settings.kbSpaceCursor = it; onChanged()
                 }
             }
             item {
                 androidx.compose.material3.SegmentedListItem(
                     onClick = {},
-                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(5, 8),
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(5, 10),
                     colors = segColors(),
                     supportingContent = {
                         Column {
@@ -1049,14 +1061,14 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                 ) { Text("Phone keyboard typing") }
             }
             item {
-                SheetSwitch("Phone keyboard learns from what you type (off: incognito)", learning, 6, 8) {
+                SheetSwitch("Phone keyboard learns from what you type (off: incognito)", learning, 6, 10) {
                     learning = it; Settings.imeLearning = it; onChanged()
                 }
             }
             item {
                 androidx.compose.material3.SegmentedListItem(
                     onClick = { trackPoint = !trackPoint; Settings.kbTrackPoint = trackPoint; onChanged() },
-                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(7, 8),
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(7, 10),
                     colors = segColors(),
                     trailingContent = {
                         androidx.compose.material3.Switch(checked = trackPoint, onCheckedChange = {
@@ -1073,6 +1085,68 @@ private fun KeyboardLayoutSheet(onChanged: () -> Unit, onDismiss: () -> Unit) {
                         }
                     },
                 ) { Text("TrackPoint on Laptop and Full layouts (tap to click, hold Fn to scroll)") }
+            }
+            item {
+                SheetSwitch("Word suggestions above the keys (from your phone's spell checker)", predict, 8, 10) {
+                    predict = it; Settings.kbPredict = it; if (!it) dev.padbridge.Predict.reset(); onChanged()
+                }
+            }
+            item {
+                androidx.compose.material3.SegmentedListItem(
+                    onClick = { predictLearn = !predictLearn; Settings.kbPredictLearn = predictLearn },
+                    shapes = androidx.compose.material3.ListItemDefaults.segmentedShapes(9, 10),
+                    colors = segColors(),
+                    trailingContent = {
+                        androidx.compose.material3.Switch(checked = predictLearn, onCheckedChange = {
+                            predictLearn = it; Settings.kbPredictLearn = it
+                        })
+                    },
+                    supportingContent = {
+                        Column {
+                            Text("Kept only on this phone. Anything typed on this keyboard counts, passwords too.")
+                            androidx.compose.material3.TextButton(
+                                onClick = { dev.padbridge.Predict.forget() },
+                                contentPadding = PaddingValues(0.dp),
+                            ) { Text("Forget learned words") }
+                        }
+                    },
+                ) { Text("Suggestions learn the words you type") }
+            }
+        }
+    }
+}
+
+/** Word suggestions for the built-in keyboard: up to three, tap one to replace the word being typed. */
+@Composable
+private fun SuggestionStrip() {
+    val ctx = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { dev.padbridge.Predict.init(ctx) }
+    val list = dev.padbridge.Predict.suggestions
+    val word = dev.padbridge.Predict.word
+    Row(
+        Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (list.isEmpty()) {
+            Text(
+                if (word.isEmpty()) "Suggestions appear as you type" else word,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp),
+            )
+        }
+        list.forEachIndexed { i, s ->
+            Surface(
+                onClick = { dev.padbridge.Predict.pick(s) },
+                shape = RoundedCornerShape(12.dp),
+                color = if (i == 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(s, style = MaterialTheme.typography.bodyLarge, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
         }
     }

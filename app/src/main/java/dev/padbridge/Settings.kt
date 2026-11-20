@@ -181,6 +181,46 @@ object Settings {
         set(v) = putBool("nativeTouchpad", v)
 
     /** N-key rollover keyboard report (changes the HID descriptor: computers must re-pair). */
+    /** Word suggestions above PadBridge's own keyboard. */
+    var kbPredict: Boolean
+        get() = bool("kbPredict", false)
+        set(v) = putBool("kbPredict", v)
+
+    /** Suggestions also learn words typed on PadBridge's keyboard (kept only on this phone). */
+    var kbPredictLearn: Boolean
+        get() = bool("kbPredictLearn", false)
+        set(v) = putBool("kbPredictLearn", v)
+
+    /** Learned words, "word\tcount" per line. */
+    var kbLearnedWords: String
+        get() = p.getString("kbLearnedWords", "") ?: ""
+        set(v) = p.edit().putString("kbLearnedWords", v).apply()
+
+    /** Drawing tablet in the descriptor (pen digitizer + absolute mouse). Needs a re-pair. */
+    var tablet: Boolean
+        get() = bool("tablet", false)
+        set(v) = putBool("tablet", v)
+
+    /** Tablet area aspect ratio (width / height of the computer's display); 0 = the whole pad, stretched. */
+    var tabletRatio: Float
+        get() = float("tabletRatio", 16f / 9f)
+        set(v) = putFloat("tabletRatio", v)
+
+    /** Tablet area within the pad, as fractions: left, top, width (height follows the ratio). */
+    var tabletArea: FloatArray
+        get() = floatArrayOf(float("tabletL", 0.04f), float("tabletT", 0.04f), float("tabletW", 0.92f))
+        set(v) { putFloat("tabletL", v[0]); putFloat("tabletT", v[1]); putFloat("tabletW", v[2]) }
+
+    /** Finger on the tablet: false = draws (touch = pen down), true = hovers (tap to click, double-tap-hold to drag). */
+    var tabletFingerHover: Boolean
+        get() = bool("tabletFingerHover", false)
+        set(v) = putBool("tabletFingerHover", v)
+
+    /** Send the tablet as 0 = automatic (mouse on macOS, pen elsewhere), 1 = pen, 2 = absolute mouse. */
+    var tabletSendAs: Int
+        get() = p.getInt("tabletSendAs", 0)
+        set(v) = p.edit().putInt("tabletSendAs", v).apply()
+
     var nkro: Boolean
         get() = bool("nkro", false)
         set(v) = putBool("nkro", v)

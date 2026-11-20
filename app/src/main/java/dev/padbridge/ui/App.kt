@@ -1,5 +1,6 @@
 package dev.padbridge.ui
 
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -102,6 +103,7 @@ enum class Dest(val label: String, val icon: ImageVector, val selectedIcon: Imag
     TRACKPAD("Trackpad", Icons.Outlined.TouchApp, Icons.Rounded.TouchApp),
     KEYBOARD("Keyboard", Icons.Outlined.Keyboard, Icons.Rounded.Keyboard),
     AIR_MOUSE("Air mouse", Icons.Outlined.Mouse, Icons.Rounded.Mouse),
+    TABLET("Drawing tablet", androidx.compose.material.icons.Icons.Rounded.Draw, androidx.compose.material.icons.Icons.Rounded.Draw),
     REMOTE("Remote", Icons.Outlined.SettingsRemote, Icons.Rounded.SettingsRemote),
     GAMEPAD("Gamepad", Icons.Outlined.SportsEsports, Icons.Rounded.SportsEsports),
 }
@@ -118,7 +120,8 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
 
     var fullscreen by rememberSaveable { mutableStateOf(Settings.fullscreenInput) }
     val toggleFullscreen = { fullscreen = !fullscreen; Settings.fullscreenInput = fullscreen }
-    val inputDest = dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE
+    val inputDest = dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE ||
+        dest == Dest.TABLET
     // AOD: the same screen as thin dim outlines on black, at minimum brightness; input keeps working.
     var aod by rememberSaveable { mutableStateOf(false) }
     val aodActive = aod && !settingsOpen && (dest == Dest.TRACKPAD || dest == Dest.KEYBOARD || dest == Dest.AIR_MOUSE || dest == Dest.REMOTE)
@@ -215,7 +218,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
         BackHandler {
             when {
                 aodActive -> aod = false
-                dest == Dest.AIR_MOUSE -> dest = Dest.TRACKPAD
+                dest == Dest.AIR_MOUSE || dest == Dest.TABLET -> dest = Dest.TRACKPAD
                 fullscreen -> toggleFullscreen()
                 else -> dest = Dest.CONNECT
             }
@@ -231,6 +234,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
                     InputDest(
                         dest, hid, osVersion, fullscreen, toggleFullscreen, aodActive, { aod = !aod }, { fullDisplay = true },
                         { aod = false; fullscreen = false; Settings.fullscreenInput = false; dest = Dest.CONNECT },
+                        onTablet = { dest = Dest.TABLET }, onTrackpad = { dest = Dest.TRACKPAD },
                     ) { dest = Dest.AIR_MOUSE }
                 }
             }
@@ -243,7 +247,9 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
 
     // Back from an input tab returns to Connect instead of closing the app mid-use.
-    BackHandler(enabled = dest != Dest.CONNECT) { dest = if (dest == Dest.AIR_MOUSE) Dest.TRACKPAD else Dest.CONNECT }
+    BackHandler(enabled = dest != Dest.CONNECT) {
+        dest = if (dest == Dest.AIR_MOUSE || dest == Dest.TABLET) Dest.TRACKPAD else Dest.CONNECT
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -264,7 +270,7 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
             if (!wide) ShortNavigationBar {
                 NavDests.forEach { d ->
                     ShortNavigationBarItem(
-                        selected = dest == d || (d == Dest.TRACKPAD && dest == Dest.AIR_MOUSE),
+                        selected = dest == d || (d == Dest.TRACKPAD && (dest == Dest.AIR_MOUSE || dest == Dest.TABLET)),
                         onClick = { dest = d },
                         icon = { Icon(if (dest == d) d.selectedIcon else d.icon, contentDescription = null) },
                         label = { Text(d.label) },
@@ -317,8 +323,9 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
                     hid, osVersion, onOsChanged = { osVersion++ }, onOpenSettings = { settingsOpen = true },
                     onOpen = { dest = it },
                 )
-                Dest.TRACKPAD, Dest.KEYBOARD, Dest.AIR_MOUSE, Dest.REMOTE ->
-                    InputDest(d, hid, osVersion, fullscreen, toggleFullscreen, false, { aod = true }, { fullDisplay = true }, { dest = Dest.CONNECT }) { dest = Dest.AIR_MOUSE }
+                Dest.TRACKPAD, Dest.KEYBOARD, Dest.AIR_MOUSE, Dest.REMOTE, Dest.TABLET ->
+                    InputDest(d, hid, osVersion, fullscreen, toggleFullscreen, false, { aod = true }, { fullDisplay = true }, { dest = Dest.CONNECT },
+                        onTablet = { dest = Dest.TABLET }, onTrackpad = { dest = Dest.TRACKPAD }) { dest = Dest.AIR_MOUSE }
                 Dest.GAMEPAD -> Box(Modifier)
             }
             }
@@ -331,10 +338,12 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
 private fun InputDest(
     d: Dest, hid: HidUi, osVersion: Int, fullscreen: Boolean, onToggleFullscreen: () -> Unit,
     aod: Boolean, onAod: () -> Unit, onFullDisplay: () -> Unit = {}, onGoConnect: () -> Unit = {},
+    onTablet: () -> Unit = {}, onTrackpad: () -> Unit = {},
     onAirMouse: () -> Unit = {},
 ) {
     when (d) {
-        Dest.TRACKPAD -> TrackpadScreen(hid, osVersion, fullscreen, onToggleFullscreen, onAod, aod, onFullDisplay, onGoConnect, onAirMouse)
+        Dest.TRACKPAD -> TrackpadScreen(hid, osVersion, fullscreen, onToggleFullscreen, onAod, aod, onFullDisplay, onGoConnect, onAirMouse, onTablet)
+        Dest.TABLET -> TabletScreen(hid, onTrackpad)
         Dest.KEYBOARD -> KeyboardScreen(hid, osVersion, fullscreen, onToggleFullscreen, onFullDisplay, onGoConnect, aod, onAod)
         Dest.AIR_MOUSE -> AirMouseScreen(fullscreen, onToggleFullscreen, onAod, aod)
         Dest.REMOTE -> RemoteScreen(hid, osVersion, aod, onAod, onGoConnect)

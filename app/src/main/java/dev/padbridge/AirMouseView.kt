@@ -171,7 +171,12 @@ class AirMouseView(ctx: Context) : View(ctx) {
         val notches = dyPx / density / divisor * Settings.scrollSpeed
         // A physical wheel: rolling it toward you (finger moves down) scrolls the page down.
         HidManager.scroll(-notches, 0f)
+        // A ratchet tick per notch, like a real wheel.
+        wheelFeel += kotlin.math.abs(notches)
+        if (wheelFeel >= 1f) { wheelFeel %= 1f; Haptics.soft(0.3f) }
     }
+
+    private var wheelFeel = 0f
 
     // ------------------------------------------------------------------ gyro
 

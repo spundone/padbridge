@@ -73,7 +73,7 @@ class SwipePadView(ctx: Context) : View(ctx) {
                             accX = 0f
                         }
                         RemoteSender.tap(RemoteOut.Key(CODES[dir]))
-                        flash = dir; Haptics.tick()
+                        flash = dir; Haptics.soft(0.45f)
                         removeCallbacks(unflash); postDelayed(unflash, 140)
                     }
                 }

@@ -15,9 +15,10 @@ package dev.padbridge
 object HidDescriptor {
     /**
      * v1: keyboard, mouse, consumer, gamepad. v2 adds the Windows Precision Touchpad collections, v3 the N-key
-     * rollover keyboard, v4 both.
+     * rollover keyboard, v4 both; +4 with the drawing tablet (pen digitizer and absolute mouse).
      */
-    val VERSION get() = 1 + (if (Settings.nativeTouchpad) 1 else 0) + (if (Settings.nkro) 2 else 0)
+    val VERSION get() = 1 + (if (Settings.nativeTouchpad) 1 else 0) + (if (Settings.nkro) 2 else 0) +
+        (if (Settings.tablet) 4 else 0)
 
     const val ID_KEYBOARD = 1
     const val ID_MOUSE = 2
@@ -28,6 +29,67 @@ object HidDescriptor {
     const val MOUSE_LEN = 7
     const val CONSUMER_LEN = 2
     const val GAMEPAD_LEN = 9
+
+    /** Drawing tablet (opt-in): a pen digitizer and an absolute mouse, both 0..[TABLET_MAX] over the whole screen. */
+    const val ID_PEN = 0x0C
+    const val ID_ABS = 0x0D
+    const val PEN_LEN = 7
+    const val ABS_LEN = 5
+    const val TABLET_MAX = 32767
+    const val PEN_PRESSURE_MAX = 4095
+
+    /**
+     * Pen: tip, barrel button, eraser, in range (hover), then X, Y and tip pressure. Windows Ink and Linux treat it as
+     * a pen tablet (absolute position, hover, pressure). Absolute mouse: three buttons and X, Y; macOS (and anything
+     * that ignores pens) moves its pointer straight to the spot.
+     */
+    val TABLET: ByteArray = b(
+        0x05, 0x0D,        // Usage Page (Digitizers)
+        0x09, 0x02,        // Usage (Pen)
+        0xA1, 0x01,        // Collection (Application)
+        0x85, ID_PEN,      //   Report ID
+        0x09, 0x20,        //   Usage (Stylus)
+        0xA1, 0x00,        //   Collection (Physical)
+        0x09, 0x42,        //     Tip Switch
+        0x09, 0x44,        //     Barrel Switch
+        0x09, 0x45,        //     Eraser
+        0x09, 0x32,        //     In Range
+        0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x04,
+        0x81, 0x02,        //     Input (Data, Var, Abs)
+        0x95, 0x04, 0x81, 0x03, // 4 bits padding
+        0x05, 0x01,        //     Usage Page (Generic Desktop)
+        0x55, 0x0E,        //     Unit Exponent (-2)
+        0x65, 0x13,        //     Unit (inch)
+        0x35, 0x00,        //     Physical Min 0
+        0x46, 0xE8, 0x03,  //     Physical Max 10.00 in
+        0x09, 0x30,        //     Usage (X)
+        0x15, 0x00, 0x26, 0xFF, 0x7F, 0x75, 0x10, 0x95, 0x01,
+        0x81, 0x02,
+        0x46, 0x71, 0x02,  //     Physical Max 6.25 in
+        0x09, 0x31,        //     Usage (Y)
+        0x81, 0x02,
+        0x65, 0x00, 0x55, 0x00, 0x45, 0x00, // units off
+        0x05, 0x0D,        //     Usage Page (Digitizers)
+        0x09, 0x30,        //     Tip Pressure
+        0x15, 0x00, 0x26, 0xFF, 0x0F, 0x75, 0x10, 0x95, 0x01,
+        0x81, 0x02,
+        0xC0,              //   End Collection
+        0xC0,              // End Collection
+
+        0x05, 0x01,        // Usage Page (Generic Desktop)
+        0x09, 0x02,        // Usage (Mouse)
+        0xA1, 0x01,        // Collection (Application)
+        0x85, ID_ABS,      //   Report ID
+        0x09, 0x01,        //   Usage (Pointer)
+        0xA1, 0x00,        //   Collection (Physical)
+        0x05, 0x09, 0x19, 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x03,
+        0x81, 0x02,        //     Buttons 1-3
+        0x95, 0x05, 0x81, 0x03,
+        0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x15, 0x00, 0x26, 0xFF, 0x7F, 0x75, 0x10, 0x95, 0x02,
+        0x81, 0x02,        //     X, Y (absolute)
+        0xC0,
+        0xC0,
+    )
 
     /** N-key rollover keyboard (opt-in): modifiers + one bit per key from [NKRO_FIRST] to [NKRO_LAST]. */
     const val ID_NKRO = 0x0B
@@ -308,5 +370,6 @@ object HidDescriptor {
 
     /** The descriptor to register: base, plus N-key rollover and PTP when they're on. */
     fun current(physW: Int, physH: Int): ByteArray =
-        BYTES + (if (Settings.nkro) NKRO else ByteArray(0)) + (if (Settings.nativeTouchpad) ptp(physW, physH) else ByteArray(0))
+        BYTES + (if (Settings.nkro) NKRO else ByteArray(0)) + (if (Settings.nativeTouchpad) ptp(physW, physH) else ByteArray(0)) +
+            (if (Settings.tablet) TABLET else ByteArray(0))
 }

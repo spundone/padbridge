@@ -165,11 +165,14 @@ object HidManager {
     @Volatile var ptpRegistered = false; private set
     /** Descriptor registered now includes the N-key rollover keyboard. */
     @Volatile var nkroRegistered = false; private set
+    /** Descriptor registered now includes the drawing tablet (pen + absolute mouse). */
+    @Volatile var tabletRegistered = false; private set
 
     private fun sdp(): BluetoothHidDeviceAppSdpSettings {
         val (w, h) = padSize()
         ptpRegistered = Settings.nativeTouchpad
         nkroRegistered = Settings.nkro
+        tabletRegistered = Settings.tablet
         val descriptor = HidDescriptor.current(w, h)
         Log.i(TAG, "descriptor v${HidDescriptor.VERSION}, ${descriptor.size} bytes: " +
             descriptor.joinToString("") { "%02x".format(it) })
@@ -863,7 +866,9 @@ object HidManager {
     /** Clear sub-notch scroll leftovers so a new gesture starts clean. */
     fun resetScroll() = io.post { accWheel = 0f; accPan = 0f }
 
-    fun setButton(button: Int, down: Boolean) = io.post {
+    fun setButton(button: Int, down: Boolean) = run { if (down) Predict.reset(); setButtonIo(button, down) }
+
+    private fun setButtonIo(button: Int, down: Boolean) = io.post {
         val nb = if (down) mouseButtons or button else mouseButtons and button.inv()
         if (nb != mouseButtons) {
             flush.run()
@@ -872,7 +877,9 @@ object HidManager {
         }
     }
 
-    fun click(button: Int, count: Int = 1) = io.post {
+    fun click(button: Int, count: Int = 1) = run { Predict.reset(); clickIo(button, count) }
+
+    private fun clickIo(button: Int, count: Int) = io.post {
         flush.run()
         repeat(count) {
             mouseButtons = mouseButtons or button; sendMouse(0, 0, 0, 0)
@@ -888,6 +895,27 @@ object HidManager {
         val step = if (hiResWheel) HidDescriptor.HIRES_MULTIPLIER else 1
         repeat(abs(notches)) { sendMouse(0, 0, if (notches > 0) step else -step, 0) }
         kbMods = saved; sendKeyboard()
+    }
+
+    // ------------------------------------------------------------------ drawing tablet
+
+    /**
+     * Pen at ([x], [y]) in 0..[HidDescriptor.TABLET_MAX] of the whole screen. [inRange] false = the pen left
+     * (hover ends); [pressure] 0..1.
+     */
+    fun pen(x: Int, y: Int, inRange: Boolean, tip: Boolean, barrel: Boolean, eraser: Boolean, pressure: Float) {
+        val p = if (tip) (pressure.coerceIn(0f, 1f) * HidDescriptor.PEN_PRESSURE_MAX).toInt().coerceAtLeast(1) else 0
+        val flags = (if (tip) 1 else 0) or (if (barrel) 2 else 0) or (if (eraser) 4 else 0) or (if (inRange) 8 else 0)
+        val r = byteArrayOf(
+            flags.toByte(), x.toByte(), (x shr 8).toByte(), y.toByte(), (y shr 8).toByte(), p.toByte(), (p shr 8).toByte(),
+        )
+        io.post { send(HidDescriptor.ID_PEN, r) }
+    }
+
+    /** Absolute mouse: pointer straight to ([x], [y]) in 0..[HidDescriptor.TABLET_MAX], with [buttons] (1 left, 2 right). */
+    fun absMouse(x: Int, y: Int, buttons: Int) {
+        val r = byteArrayOf(buttons.toByte(), x.toByte(), (x shr 8).toByte(), y.toByte(), (y shr 8).toByte())
+        io.post { send(HidDescriptor.ID_ABS, r) }
     }
 
     // ------------------------------------------------------------------ keyboard
@@ -923,11 +951,16 @@ object HidManager {
         // Copy now: callers pass live collections, and by the time the io thread runs (later on a slow link,
         // like a TV's) a quick tap would already have been released, so the key would never be sent.
         val snap = keys.toList()
+        kbModsUi = mods
+        snap.forEach { Typing.sent(it, mods) }
         io.post { kbMods = mods; kbKeys.clear(); kbKeys.addAll(snap); sendKeyboard() }
     }
 
     /** Press and release a combo. Modifiers go down first so macOS reliably sees the chord. */
-    fun tap(code: Int, mods: Int = 0) = io.post { tapInternal(code, mods) }
+    fun tap(code: Int, mods: Int = 0) = run { Typing.sent(code, mods or kbModsUi); io.post { tapInternal(code, mods) } }
+
+    /** Modifiers held on the on-screen keyboard (set with [setKeyboardState]), for [Typing.sent]. */
+    @Volatile private var kbModsUi = 0
 
     private fun tapInternal(code: Int, mods: Int) {
         val base = kbMods

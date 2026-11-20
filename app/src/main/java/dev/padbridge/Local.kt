@@ -179,6 +179,14 @@ object Local {
                     keyboard(b, data[0].toInt() and 0xFF)
                 }
                 HidDescriptor.ID_CONSUMER -> consumer((data[0].toInt() and 0xFF) or ((data[1].toInt() and 0xFF) shl 8))
+                HidDescriptor.ID_ABS -> absolute(b, data[0].toInt() and 0x07, data, 1)
+                HidDescriptor.ID_PEN -> {
+                    val f = data[0].toInt()
+                    if (f and 8 == 0) return // pen left: nothing to do
+                    // Tip = left button; tip with the barrel button = right.
+                    val btn = if (f and 1 == 0) 0 else if (f and 2 != 0) 2 else 1
+                    absolute(b, btn, data, 1)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "replay", e)
@@ -210,6 +218,17 @@ object Local {
             val flip = if (Settings.naturalScroll) 1f else -1f
             b.scroll(displayId, x, y, flip * wheel / wm, flip * pan / pm)
         }
+    }
+
+    /** Drawing tablet: the pointer jumps to the spot (X, Y little-endian at [at], 0..TABLET_MAX). */
+    private fun absolute(b: Backend, nb: Int, d: ByteArray, at: Int) {
+        val ax = (d[at].toInt() and 0xFF) or ((d[at + 1].toInt() and 0xFF) shl 8)
+        val ay = (d[at + 2].toInt() and 0xFF) or ((d[at + 3].toInt() and 0xFF) shl 8)
+        x = ax / HidDescriptor.TABLET_MAX.toFloat() * (width - 1)
+        y = ay / HidDescriptor.TABLET_MAX.toFloat() * (height - 1)
+        Cursor.moveTo(x, y)
+        buttons = nb
+        b.pointer(displayId, x, y, buttons)
     }
 
     private fun keyboard(b: Backend, mods: Int) {

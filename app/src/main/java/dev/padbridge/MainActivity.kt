@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity(), HidManager.Listener {
         Haptics.init(this)
         // "Control this phone" stays on across restarts (GitHub build).
         Local.init(this)
+        Predict.init(this)
         if (BuildConfig.ROOT_FEATURES && Settings.localControl) Local.setEnabled(this, true)
 
         requestedDest.value = intent?.getStringExtra(EXTRA_DEST)

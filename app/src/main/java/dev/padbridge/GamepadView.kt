@@ -84,6 +84,7 @@ class GamepadView(ctx: Context) : View(ctx) {
         val value = PointF()
         var lastRelease = 0L
         var atEdge = false
+        var engaged = false
         /** Floating: re-centers under the thumb anywhere inside [zone]. */
         var floating = false
         val zone = RectF()
@@ -290,7 +291,7 @@ class GamepadView(ctx: Context) : View(ctx) {
                     when (val c = owner.remove(id)) {
                         is Button -> if (owner.values.none { it === c }) pressed -= c
                         is Stick -> {
-                            c.value.set(0f, 0f); c.atEdge = false
+                            c.value.set(0f, 0f); c.atEdge = false; c.engaged = false
                             c.lastRelease = e.eventTime
                             if (c.floating) c.center.set(c.home)
                             thumbBits = thumbBits and (1 shl c.thumbBit).inv()
@@ -339,6 +340,10 @@ class GamepadView(ctx: Context) : View(ctx) {
         val edge = mag >= 0.98f
         if (edge && !s.atEdge) Haptics.tick()
         s.atEdge = edge
+        // A faint tick as the stick leaves its center, so you feel it engage.
+        val out = mag > 0.25f
+        if (out && !s.engaged) Haptics.soft(0.25f)
+        s.engaged = out
     }
 
     private fun updateDpad(x: Float, y: Float) {
@@ -356,6 +361,7 @@ class GamepadView(ctx: Context) : View(ctx) {
         val v = ((y - p.rect.top) / p.rect.height()).coerceIn(0f, 1f)
         val nv = 0.15f + 0.85f * v
         if (nv >= 0.99f && p.value < 0.99f) Haptics.tick()
+        else if (nv >= 0.5f && p.value < 0.5f) Haptics.soft(0.3f) // halfway detent
         p.value = nv
     }
 

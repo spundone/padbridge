@@ -22,7 +22,37 @@ object Typing {
     @Volatile var lastKey = 0L
     @Volatile private var prevKey = 0L
 
-    fun keyPressed() { prevKey = lastKey; lastKey = SystemClock.uptimeMillis() }
+    /**
+     * A key was typed. Shortcuts (with Ctrl, Alt, Cmd / Windows held: [mods] is the HID modifier byte) aren't typing:
+     * the hand is reaching for the pad next, so they don't start palm rejection.
+     */
+    fun keyPressed(mods: Int = 0) {
+        if (mods and SHORTCUT_MODS != 0) return
+        prevKey = lastKey; lastKey = SystemClock.uptimeMillis()
+    }
+
+    private const val SHORTCUT_MODS = 0x01 or 0x04 or 0x08 or 0x10 or 0x40 or 0x80 // Ctrl, Alt, GUI (left / right)
+
+    /** Until when the next one-finger touch on the pad holds the button (region screenshot just started). */
+    @Volatile var dragArmedUntil = 0L
+
+    /**
+     * Every key PadBridge sends passes here: a region-screenshot shortcut (Cmd+Shift+4 / 5, Win+Shift+S,
+     * Print Screen) arms the trackpad so the next drag selects the region, the way you'd drag with a mouse.
+     */
+    fun sent(code: Int, mods: Int) {
+        val gui = mods and 0x88 != 0; val shift = mods and 0x22 != 0
+        val region = (gui && shift && (code == Keys.digit('4') || code == Keys.digit('5') || code == Keys.letter('s'))) ||
+            code == Keys.PRINT_SCREEN
+        if (region) dragArmedUntil = SystemClock.uptimeMillis() + 10_000
+    }
+
+    /** Takes the arm (once). */
+    fun takeDragArm(): Boolean {
+        val armed = SystemClock.uptimeMillis() < dragArmedUntil
+        dragArmedUntil = 0L
+        return armed
+    }
 
     /** A key was typed recently: a short window after one key, longer in the middle of typing. */
     fun recent(now: Long = SystemClock.uptimeMillis()): Boolean {
@@ -442,12 +472,18 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
             else -> Edge.NONE
         }
 
-        if (Settings.tapToClick && e.eventTime - lastTapUp < Settings.doubleTapMs.toLong() &&
+        if (Typing.takeDragArm()) {
+            // A region screenshot is waiting for its selection: hold the button now, lift to finish.
+            dragging = true
+            HidManager.setButton(BTN_LEFT, true)
+            showLabel("Drag to select"); Haptics.soft(0.4f)
+        } else if (Settings.tapToClick && e.eventTime - lastTapUp < Settings.doubleTapMs.toLong() &&
             hypot(e.x - lastTapPos.x, e.y - lastTapPos.y) < 60 * density
         ) {
             // Second touch right after a tap: hold the button. Lift without moving = double click.
             dragging = true
             HidManager.setButton(BTN_LEFT, true)
+            Haptics.soft(0.4f) // tap-and-drag picked something up
         } else {
             postDelayed(longPress, longPressDelay)
         }
@@ -705,7 +741,13 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
         // Natural: content follows the fingers (fingers down = scroll up = positive wheel).
         val sign = if (Settings.naturalScroll) 1f else -1f
         HidManager.scroll(sdy * sign, -sdx * sign)
+        // A ratchet tick per wheel notch scrolled (fainter while it coasts on momentum).
+        scrollFeel += abs(sdy) + abs(sdx)
+        if (scrollFeel >= 1f) { scrollFeel %= 1f; Haptics.soft(if (momentumRunning) 0.15f else 0.25f) }
     }
+
+    /** Wheel notches scrolled since the last haptic tick. */
+    private var scrollFeel = 0f
 
     private fun pinch(span: Float) {
         val ratio = span / pinchRef
@@ -717,7 +759,7 @@ class TrackpadView(ctx: Context) : View(ctx), Routable {
         if (combo != null) HidManager.combo(combo)
         else HidManager.modifiedWheel(Keys.L_CTRL, if (zoomIn) 1 else -1)
         showLabel(if (zoomIn) "Zoom in" else "Zoom out")
-        Haptics.tick()
+        Haptics.soft(0.5f)
     }
 
     private fun startMomentum(vx: Float, vy: Float) {
