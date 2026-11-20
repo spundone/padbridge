@@ -64,6 +64,16 @@ object Settings {
         get() = bool("haptics", true)
         set(v) = putBool("haptics", v)
 
+    /** Haptic style: 0 = automatic (by what the motor supports), 1 = rich (phone motors), 2 = basic (plain pulses). */
+    var hapticStyle: Int
+        get() = p.getInt("hapticStyle", 0)
+        set(v) = p.edit().putInt("hapticStyle", v).apply()
+
+    /** No vibration motor: play a quiet key click instead. */
+    var hapticSound: Boolean
+        get() = bool("hapticSound", false)
+        set(v) = putBool("hapticSound", v)
+
     var autoReconnect: Boolean
         get() = bool("autoReconnect", true)
         set(v) = putBool("autoReconnect", v)
@@ -438,6 +448,10 @@ object Settings {
     var floatY: Int
         get() = p.getInt("floatY", -1)
         set(v) = p.edit().putInt("floatY", v).apply()
+    /** Floating trackpad opacity, 0.25..1. */
+    var floatAlpha: Float
+        get() = float("floatAlpha", 1f)
+        set(v) = putFloat("floatAlpha", v)
 
     /** "Control this phone" (no Bluetooth) is on. */
     var localControl: Boolean

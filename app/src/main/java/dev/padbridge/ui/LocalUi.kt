@@ -145,6 +145,12 @@ fun LocalControlCard() {
                 Icon(Icons.Rounded.Layers, null, Modifier.size(18.dp))
                 Text(if (FloatingPadService.running) "  Close floating trackpad" else "  Floating trackpad over other apps")
             }
+            var alpha by remember { androidx.compose.runtime.mutableFloatStateOf(Settings.floatAlpha) }
+            Text("Floating trackpad opacity · ${(alpha * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+            androidx.compose.material3.Slider(
+                value = alpha, valueRange = 0.25f..1f,
+                onValueChange = { alpha = it; FloatingPadService.applyOpacity(it) },
+            )
         }
     }
 }

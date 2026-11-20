@@ -122,6 +122,11 @@ itself: once a day (or when you tap **Check for updates**) it asks GitHub for th
 to update, downloads that APK from GitHub. You can turn the daily check off in Settings › About. Details in
 [PRIVACY.md](PRIVACY.md).
 
+## Other apps
+
+- [PadKeys](https://github.com/spundone/padkeys): PadBridge's keyboard as your phone's own keyboard, with laptop
+  layouts, flick for symbols, a space-bar cursor and private suggestions. No internet permission.
+
 ## License
 
 [Apache License 2.0](LICENSE).

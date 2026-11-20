@@ -1,5 +1,8 @@
 package dev.padbridge.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Keyboard
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -108,6 +111,48 @@ fun AboutDeveloper() {
         }
     }
 }
+
+/** "Other apps": the developer's other projects, each a tap to its GitHub page. */
+@Composable
+fun OtherApps() {
+    val ctx = LocalContext.current
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Other apps", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .clickable { open(ctx, PADKEYS_URL) }.padding(vertical = 4.dp),
+            ) {
+                Box(
+                    Modifier.size(48.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Rounded.Keyboard, null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("PadKeys", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "PadBridge's keyboard as your phone's keyboard: laptop layouts, flick for symbols, a space-bar " +
+                            "cursor and private suggestions. No internet permission.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.OpenInNew, "Open on GitHub",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+private const val PADKEYS_URL = "https://github.com/spundone/padkeys"
 
 private fun open(ctx: Context, url: String) = try {
     ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))

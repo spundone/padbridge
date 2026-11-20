@@ -49,6 +49,7 @@ fun Context.dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toIn
 
 object Haptics {
     private var vibrator: Vibrator? = null
+    private var audio: android.media.AudioManager? = null
 
     fun init(ctx: Context) {
         vibrator = if (Build.VERSION.SDK_INT >= 31) {
@@ -56,12 +57,49 @@ object Haptics {
         } else {
             @Suppress("DEPRECATION") ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
+        audio = ctx.getSystemService(android.media.AudioManager::class.java)
     }
 
-    private fun play(predefined: Int, fallbackMs: Long, amp: Int) {
+    /** This device can vibrate at all (many tablets, like some Galaxy Tabs, have no motor). */
+    val available get() = vibrator?.hasVibrator() == true
+
+    /**
+     * The motor understands Android's preset effects (tick, click, heavy click) and fine amplitude: a phone-class
+     * haptics motor. Basic motors (most tablets, older or budget phones) get plain pulses instead, which they can
+     * actually play: presets and very short pulses do nothing on them.
+     */
+    val rich: Boolean by lazy {
+        val v = vibrator ?: return@lazy false
+        if (Build.VERSION.SDK_INT >= 30) {
+            v.areAllEffectsSupported(VibrationEffect.EFFECT_TICK, VibrationEffect.EFFECT_CLICK) ==
+                Vibrator.VIBRATION_EFFECT_SUPPORT_YES
+        } else v.hasAmplitudeControl()
+    }
+
+    /** Rich effects in use: [Settings.hapticStyle] 0 = automatic, 1 = rich, 2 = basic. */
+    private val useRich get() = when (Settings.hapticStyle) { 1 -> true; 2 -> false; else -> rich }
+
+    private var lastBasic = 0L
+
+    /** Basic motor: a plain pulse of [ms]. Light ones are spaced out, so a texture is a gentle patter, not a buzz. */
+    private fun basic(ms: Long, light: Boolean) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (light && now - lastBasic < 45) return
+        lastBasic = now
+        try { vibrator?.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
+    }
+
+    /** No motor: a quiet key click instead, when the user asked for it ([Settings.hapticSound]). */
+    private fun sound(light: Boolean) {
+        if (!Settings.hapticSound || light) return
+        try { audio?.playSoundEffect(android.media.AudioManager.FX_KEY_CLICK, 0.4f) } catch (_: Exception) {}
+    }
+
+    private fun play(predefined: Int, fallbackMs: Long, amp: Int, basicMs: Long) {
         if (!Settings.haptics) return
         val v = vibrator ?: return
-        if (!v.hasVibrator()) return
+        if (!v.hasVibrator()) { sound(false); return }
+        if (!useRich) { basic(basicMs, false); return }
         try {
             if (Build.VERSION.SDK_INT >= 29) v.vibrate(VibrationEffect.createPredefined(predefined))
             else v.vibrate(VibrationEffect.createOneShot(fallbackMs, amp))
@@ -75,7 +113,8 @@ object Haptics {
     fun soft(scale: Float = 0.4f) {
         if (!Settings.haptics) return
         val v = vibrator ?: return
-        if (!v.hasVibrator()) return
+        if (!v.hasVibrator()) return // too frequent for click sounds
+        if (!useRich) { basic(if (scale >= 0.4f) 12 else 9, true); return }
         try {
             val low = Build.VERSION.SDK_INT >= 31 &&
                 v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
@@ -92,7 +131,7 @@ object Haptics {
     }
 
     @Suppress("UNUSED_PARAMETER")
-    fun tick(view: View? = null) = play(VibrationEffect.EFFECT_TICK, 8, 60)
-    fun click() = play(VibrationEffect.EFFECT_CLICK, 14, 140)
-    fun heavy() = play(VibrationEffect.EFFECT_HEAVY_CLICK, 24, 255)
+    fun tick(view: View? = null) = play(VibrationEffect.EFFECT_TICK, 8, 60, 14)
+    fun click() = play(VibrationEffect.EFFECT_CLICK, 14, 140, 22)
+    fun heavy() = play(VibrationEffect.EFFECT_HEAVY_CLICK, 24, 255, 40)
 }

@@ -30,6 +30,7 @@ class FloatingPadService : Service() {
     private var root: View? = null
     private lateinit var params: WindowManager.LayoutParams
     private var collapsed = false
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
     private val d get() = resources.displayMetrics.density
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -38,6 +39,7 @@ class FloatingPadService : Service() {
         super.onCreate()
         wm = getSystemService(WindowManager::class.java)
         running = true
+        instance = this
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -50,6 +52,7 @@ class FloatingPadService : Service() {
         root?.let { try { wm.removeView(it) } catch (_: Exception) {} }
         root = null
         running = false
+        instance = null
         super.onDestroy()
     }
 
@@ -67,6 +70,7 @@ class FloatingPadService : Service() {
             x = Settings.floatX.takeIf { it >= 0 } ?: (dm.widthPixels - w - 16 * d).toInt()
             y = Settings.floatY.takeIf { it >= 0 } ?: (dm.heightPixels * 0.55f).toInt()
             title = "PadBridge floating trackpad"
+            alpha = Settings.floatAlpha
         }
         val v = buildPanel()
         root = v
@@ -109,6 +113,13 @@ class FloatingPadService : Service() {
                     if (!moved) when (bar.hit(e.x)) {
                         Bar.CLOSE -> stopSelf()
                         Bar.FOLD -> fold(true)
+                        Bar.OPACITY -> {
+                            // Cycle 100 -> 80 -> 60 -> 40 %, so apps underneath show through.
+                            val steps = floatArrayOf(1f, 0.8f, 0.6f, 0.4f)
+                            val i = steps.indexOfFirst { kotlin.math.abs(it - params.alpha) < 0.05f }
+                            setOpacity(steps[(i + 1).mod(steps.size)])
+                            Haptics.soft(0.4f)
+                        }
                     } else savePos()
                 }
             }
@@ -163,6 +174,12 @@ class FloatingPadService : Service() {
     }
 
     private fun update() { try { wm.updateViewLayout(root, params) } catch (_: Exception) {} }
+
+    private fun setOpacity(a: Float) {
+        params.alpha = a.coerceIn(0.25f, 1f)
+        Settings.floatAlpha = params.alpha
+        update()
+    }
     private fun savePos() { Settings.floatX = params.x; Settings.floatY = params.y }
 
     /** Title bar: a grab handle in the middle, fold (dash) and close (cross) at the right. */
@@ -172,6 +189,7 @@ class FloatingPadService : Service() {
         fun hit(x: Float) = when {
             x > width - 34 * d -> CLOSE
             x > width - 68 * d -> FOLD
+            x < 40 * d -> OPACITY
             else -> NONE
         }
         override fun onDraw(c: Canvas) {
@@ -183,8 +201,13 @@ class FloatingPadService : Service() {
             c.drawLine(fx - 6 * d, cy, fx + 6 * d, cy, p)
             val cx = width - 17 * d; val s = 5.5f * d
             c.drawLine(cx - s, cy - s, cx + s, cy + s, p); c.drawLine(cx - s, cy + s, cx + s, cy - s, p)
+            // Opacity: a half-filled circle at the left.
+            val ox = 18 * d; val r = 6.5f * d
+            p.style = Paint.Style.STROKE; c.drawCircle(ox, cy, r, p)
+            p.style = Paint.Style.FILL; c.drawArc(ox - r, cy - r, ox + r, cy + r, 90f, 180f, true, p)
+            p.style = Paint.Style.STROKE
         }
-        companion object { const val NONE = 0; const val FOLD = 1; const val CLOSE = 2 }
+        companion object { const val NONE = 0; const val FOLD = 1; const val CLOSE = 2; const val OPACITY = 3 }
     }
 
     /** Resize grip: three short diagonal lines in the corner. */
@@ -231,5 +254,10 @@ class FloatingPadService : Service() {
         }
 
         fun stop(ctx: Context) { ctx.stopService(Intent(ctx, FloatingPadService::class.java)) }
+
+        /** The open window, so the settings slider can change its opacity live. */
+        @Volatile var instance: FloatingPadService? = null; private set
+
+        fun applyOpacity(a: Float) { Settings.floatAlpha = a; instance?.let { s -> s.main.post { s.setOpacity(a) } } }
     }
 }

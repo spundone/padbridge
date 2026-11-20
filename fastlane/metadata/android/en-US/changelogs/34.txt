@@ -1,0 +1,3 @@
+Haptics on tablets and phones with simple motors: choose Auto, Rich or Basic in Settings > General, with an optional click sound on devices with no motor.
+Floating trackpad transparency: tap its half-circle button or use the slider.
+New in About: PadKeys, PadBridge's keyboard as your phone's keyboard.

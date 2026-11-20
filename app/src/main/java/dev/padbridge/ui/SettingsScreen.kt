@@ -82,6 +82,63 @@ private fun SwitchRow(title: String, subtitle: String?, index: Int, count: Int, 
     ) { Text(title) }
 }
 
+/**
+ * Haptic feedback: on / off, and the style. Phone motors get crisp preset effects; basic motors (most tablets, like
+ * a Galaxy Tab) can't play those, so they get plain pulses. Without any motor it offers a quiet click sound.
+ */
+@Composable
+private fun HapticsRow() {
+    var on by remember { mutableStateOf(Settings.haptics) }
+    var style by remember { mutableIntStateOf(Settings.hapticStyle) }
+    var sound by remember { mutableStateOf(Settings.hapticSound) }
+    val motor = dev.padbridge.Haptics.available
+    SegmentedListItem(
+        onClick = { on = !on; Settings.haptics = on },
+        shapes = ListItemDefaults.segmentedShapes(0, 5),
+        colors = segColors(),
+        trailingContent = { Switch(checked = on, onCheckedChange = { on = it; Settings.haptics = it }) },
+        supportingContent = {
+            Column {
+                if (!motor) {
+                    Text("This device has no vibration motor.")
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        Text("Click sound instead", Modifier.weight(1f))
+                        Switch(checked = sound, onCheckedChange = { sound = it; Settings.hapticSound = it })
+                    }
+                } else if (on) {
+                    Text(
+                        when (style) {
+                            1 -> "Rich: crisp ticks and clicks for phone haptic motors."
+                            2 -> "Basic: plain pulses that simple motors (most tablets) can play."
+                            else -> "Automatic: " + if (dev.padbridge.Haptics.rich) "rich, this motor supports it." else
+                                "basic, this motor can't play rich effects."
+                        },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.ButtonGroupDefaults.ConnectedSpaceBetween),
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        val labels = listOf("Auto", "Rich", "Basic")
+                        labels.forEachIndexed { i, label ->
+                            androidx.compose.material3.ToggleButton(
+                                checked = style == i,
+                                onCheckedChange = {
+                                    style = i; Settings.hapticStyle = i
+                                    dev.padbridge.Haptics.click() // feel the new style
+                                },
+                                modifier = Modifier.weight(1f),
+                                shapes = when (i) {
+                                    0 -> androidx.compose.material3.ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    labels.lastIndex -> androidx.compose.material3.ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> androidx.compose.material3.ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                },
+                            ) { Text(label, maxLines = 1) }
+                        }
+                    }
+                }
+            }
+        },
+    ) { Text("Haptic feedback") }
+}
+
 /** Do Not Disturb while full screen. Needs the user to grant Do Not Disturb access once. */
 @Composable
 private fun DndRow() {
@@ -312,7 +369,7 @@ fun SettingsScreen(
                     item { SectionHeader("Computer type") }
                     item { OsSelector(osVersion) { osVersion++; gestureVersion++; onOsChanged() } }
                     item { SectionHeader("Behavior") }
-                    item { SwitchRow("Haptic feedback", null, 0, 5, Settings.haptics) { Settings.haptics = it } }
+                    item { HapticsRow() }
                     item { SwitchRow("Reconnect to last computer", "When PadBridge starts", 1, 5, Settings.autoReconnect) { Settings.autoReconnect = it } }
                     item {
                         SwitchRow("Keep screen on while connected", null, 2, 5, Settings.keepScreenOn) {
@@ -369,6 +426,7 @@ fun SettingsScreen(
                         }
                     }
                     item { Column(Modifier.padding(top = 16.dp)) { AboutDeveloper() } }
+                    item { Column(Modifier.padding(top = 12.dp)) { OtherApps() } }
 
                     item {
                         Button(

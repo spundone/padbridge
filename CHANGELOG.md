@@ -9,6 +9,17 @@ undated.
 
 ## [Unreleased]
 
+## [1.7.0] – 2026-11-20
+
+### Added
+- About › Other apps: PadKeys, PadBridge's keyboard as your phone's own keyboard.
+- Adjustable transparency for the floating trackpad: the half-circle button on its bar cycles 100, 80, 60 and 40%,
+  or set any level with the slider under "Floating trackpad" on the Connect screen. Apps underneath show through.
+- Haptics on tablets and phones with simple vibration motors (like a Galaxy Tab): Settings › General › Haptic
+  feedback now has a style, Auto, Rich or Basic. Basic plays plain pulses that simple motors can feel (the crisp
+  preset ticks did nothing on them), with light textures spaced out so they patter instead of buzzing; Auto picks by
+  what the motor supports. Devices with no motor at all can play a quiet click sound instead.
+
 ## [1.6.0] – 2026-11-20
 
 ### Changed
