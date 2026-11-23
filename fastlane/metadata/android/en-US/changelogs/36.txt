@@ -1,0 +1,4 @@
+Easier setup: one Allow button, three pairing steps, and pick where to start at the end.
+Problems say what's wrong with a one-tap fix (Allow, Turn on Bluetooth, Start).
+Settings: new Keyboard and Screen pages, search, and links from each mode's menu.
+Fixed a crash after revoking the Nearby devices permission.

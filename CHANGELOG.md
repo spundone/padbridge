@@ -9,6 +9,8 @@ undated.
 
 ## [Unreleased]
 
+## [1.9.0] – 2026-11-24
+
 ### Changed
 - Setup is shorter and smarter: one Allow button asks for the permission and moves on by itself, picking a
   computer type moves on, pairing is three numbered steps with troubleshooting folded away, a connection moves on
