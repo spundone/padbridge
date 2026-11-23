@@ -21,6 +21,10 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Gesture
@@ -94,7 +98,7 @@ private fun HapticsRow() {
     val motor = dev.padbridge.Haptics.available
     SegmentedListItem(
         onClick = { on = !on; Settings.haptics = on },
-        shapes = ListItemDefaults.segmentedShapes(0, 5),
+        shapes = ListItemDefaults.segmentedShapes(0, 3),
         colors = segColors(),
         trailingContent = { Switch(checked = on, onCheckedChange = { on = it; Settings.haptics = it }) },
         supportingContent = {
@@ -160,7 +164,7 @@ private fun DndRow() {
     } catch (_: Exception) {}
     SegmentedListItem(
         onClick = { on = !on; Settings.fullscreenDnd = on; if (on && !access) openAccess() },
-        shapes = ListItemDefaults.segmentedShapes(4, 5),
+        shapes = ListItemDefaults.segmentedShapes(1, 2),
         colors = segColors(),
         supportingContent = {
             Text(
@@ -201,7 +205,7 @@ private fun SliderRow(
 @Composable
 fun SettingsScreen(
     hid: HidUi, onBack: () -> Unit, onOsChanged: () -> Unit, activity: MainActivity,
-    onRunSetup: () -> Unit = {},
+    onRunSetup: () -> Unit = {}, startPage: SettingsPage? = null,
 ) {
     var rootOpen by remember { mutableStateOf(false) }
     if (rootOpen) {
@@ -210,8 +214,12 @@ fun SettingsScreen(
         return
     }
     val ctx = LocalContext.current
-    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
-    androidx.activity.compose.BackHandler(enabled = page != null && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 840) { page = null }
+    var page by rememberSaveable { mutableStateOf(startPage) }
+    var query by rememberSaveable { mutableStateOf("") }
+    // Opened from a mode's menu straight at a page: Back returns to that mode, not to the list.
+    androidx.activity.compose.BackHandler(enabled = page != null && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 840) {
+        if (startPage != null) onBack() else page = null
+    }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var osVersion by remember { mutableIntStateOf(0) }
     var gestureVersion by remember { mutableIntStateOf(0) }
@@ -219,7 +227,7 @@ fun SettingsScreen(
     val os = remember(osVersion) { Settings.hostOs }
     // Tablets: list-detail, categories on the left and the open page on the right.
     val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
-    val shown = if (wide) (page ?: SettingsPage.TRACKPAD) else page
+    val shown = if (wide) (page ?: SettingsPage.GENERAL) else page
 
     val pageList: @Composable (SettingsPage?, Modifier) -> Unit = { shown, modifier ->
         LazyColumn(
@@ -234,7 +242,9 @@ fun SettingsScreen(
             }
             when (shown) {
                 null -> {
-                    item { SettingsCategories(os, onOpen = { page = it }) }
+                    item { SettingsSearch(query) { query = it } }
+                    if (query.isBlank()) item { SettingsCategories(os, onOpen = { page = it }) }
+                    else item { SearchResults(query) { page = it; query = "" } }
                 }
                 SettingsPage.TRACKPAD -> {
                     item { SectionHeader("Pointer & scrolling") }
@@ -279,9 +289,6 @@ fun SettingsScreen(
 
                     item { SectionHeader("Native touchpad (beta)") }
                     item { NativeTouchpadSetting(hid) }
-
-                    item { SectionHeader("Keyboard rollover") }
-                    item { NkroSetting() }
 
                     item { SectionHeader("Three-finger drag") }
                     item {
@@ -345,19 +352,88 @@ fun SettingsScreen(
                 }
                 SettingsPage.MOTION -> {
                     item { Gap(8) }
-                    item { SliderRow("Air mouse speed", 0, 4, Settings.airSpeed) { Settings.airSpeed = it } }
+                    item { SliderRow("Air mouse speed", 0, 3, Settings.airSpeed) { Settings.airSpeed = it } }
                     item {
                         SwitchRow("Air mouse always aims", "Move without holding the pad. Tap the pad to click.",
-                            1, 4, Settings.airAlwaysAim) { Settings.airAlwaysAim = it }
+                            1, 3, Settings.airAlwaysAim) { Settings.airAlwaysAim = it }
                     }
                     item {
-                        SliderRow("Gamepad gyro sensitivity", 2, 4, Settings.gamepadGyroSens, range = 0.4f..2.5f, steps = 20) {
+                        SliderRow("Gamepad gyro sensitivity", 2, 3, Settings.gamepadGyroSens, range = 0.4f..2.5f, steps = 20) {
                             Settings.gamepadGyroSens = it
                         }
                     }
+                }
+                SettingsPage.KEYBOARD -> {
+                    item { SectionHeader("Typing") }
+                    item {
+                        SwitchRow("Word suggestions", "Above PadBridge's own keyboard; tap one to finish the word",
+                            0, 3, Settings.kbPredict) { Settings.kbPredict = it; if (!it) dev.padbridge.Predict.reset() }
+                    }
+                    item {
+                        var learn by remember { mutableStateOf(Settings.kbPredictLearn) }
+                        SegmentedListItem(
+                            onClick = { learn = !learn; Settings.kbPredictLearn = learn },
+                            shapes = ListItemDefaults.segmentedShapes(1, 3),
+                            colors = segColors(),
+                            trailingContent = { Switch(checked = learn, onCheckedChange = { learn = it; Settings.kbPredictLearn = it }) },
+                            supportingContent = {
+                                Column {
+                                    Text("Kept only on this phone. Anything typed on this keyboard counts, passwords too.")
+                                    TextButton(onClick = { dev.padbridge.Predict.forget() }, contentPadding = PaddingValues(0.dp)) {
+                                        Text("Forget learned words")
+                                    }
+                                }
+                            },
+                        ) { Text("Suggestions learn your words") }
+                    }
+                    item {
+                        SwitchRow("Phone keyboard learns from typing", "Off: Gboard and others type in incognito mode",
+                            2, 3, Settings.imeLearning) { Settings.imeLearning = it }
+                    }
+                    item { SectionHeader("TrackPoint") }
+                    item {
+                        SwitchRow("TrackPoint on Laptop and Full layouts", "Tap to click, hold Fn to scroll",
+                            0, 2, Settings.kbTrackPoint) { Settings.kbTrackPoint = it }
+                    }
+                    item {
+                        SliderRow("TrackPoint sensitivity", 1, 2, Settings.trackPointSpeed, range = 0.3f..3f, steps = 26) {
+                            Settings.trackPointSpeed = it
+                        }
+                    }
+                    item { SectionHeader("Keyboard rollover") }
+                    item { NkroSetting() }
+                    item {
+                        Text(
+                            "Layout, size, the laptop deck and key options are on the Keyboard tab, under its layout button.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                        )
+                    }
+                }
+                SettingsPage.SCREEN -> {
+                    item { SectionHeader("While you use PadBridge") }
+                    item {
+                        SwitchRow("Keep screen on while connected", null, 0, 2, Settings.keepScreenOn) {
+                            Settings.keepScreenOn = it; activity.applyKeepScreenOn()
+                        }
+                    }
+                    item {
+                        val steps = listOf(0, 15, 30, 60, 120, 300)
+                        SliderRow(
+                            "Dim to outline mode when idle", 1, 2,
+                            steps.indexOf(Settings.idleAodSeconds).coerceAtLeast(0).toFloat(),
+                            range = 0f..(steps.size - 1).toFloat(), steps = steps.size - 2,
+                            format = { i ->
+                                when (val s = steps[i.toInt().coerceIn(0, steps.lastIndex)]) {
+                                    0 -> "Never"; in 1..59 -> "$s s"; else -> "${s / 60} min"
+                                }
+                            },
+                        ) { Settings.idleAodSeconds = steps[it.toInt().coerceIn(0, steps.lastIndex)] }
+                    }
+                    item { SectionHeader("Full screen") }
                     item {
                         SwitchRow("Hide app bars on input screens", "Trackpad, keyboard and air mouse use the whole height. Back shows them again.",
-                            3, 5, Settings.fullscreenInput) { Settings.fullscreenInput = it }
+                            0, 2, Settings.fullscreenInput) { Settings.fullscreenInput = it }
                     }
                     item { DndRow() }
                 }
@@ -370,26 +446,8 @@ fun SettingsScreen(
                     item { OsSelector(osVersion) { osVersion++; gestureVersion++; onOsChanged() } }
                     item { SectionHeader("Behavior") }
                     item { HapticsRow() }
-                    item { SwitchRow("Reconnect to last computer", "When PadBridge starts", 1, 5, Settings.autoReconnect) { Settings.autoReconnect = it } }
-                    item {
-                        SwitchRow("Keep screen on while connected", null, 2, 5, Settings.keepScreenOn) {
-                            Settings.keepScreenOn = it; activity.applyKeepScreenOn()
-                        }
-                    }
-                    item { SwitchRow("Show all paired devices", "Not only computers", 3, 5, Settings.showAllDevices) { Settings.showAllDevices = it } }
-                    item {
-                        val steps = listOf(0, 15, 30, 60, 120, 300)
-                        SliderRow(
-                            "Dim to outline mode when idle", 4, 5,
-                            steps.indexOf(Settings.idleAodSeconds).coerceAtLeast(0).toFloat(),
-                            range = 0f..(steps.size - 1).toFloat(), steps = steps.size - 2,
-                            format = { i ->
-                                when (val s = steps[i.toInt().coerceIn(0, steps.lastIndex)]) {
-                                    0 -> "Never"; in 1..59 -> "$s s"; else -> "${s / 60} min"
-                                }
-                            },
-                        ) { Settings.idleAodSeconds = steps[it.toInt().coerceIn(0, steps.lastIndex)] }
-                    }
+                    item { SwitchRow("Reconnect to last computer", "When PadBridge starts", 1, 3, Settings.autoReconnect) { Settings.autoReconnect = it } }
+                    item { SwitchRow("Show all paired devices", "Phones, speakers and others too, not only computers and TVs", 2, 3, Settings.showAllDevices) { Settings.showAllDevices = it } }
 
                     item { SectionHeader("More") }
                     val rootBuild = dev.padbridge.BuildConfig.ROOT_FEATURES
@@ -485,7 +543,7 @@ fun SettingsScreen(
                 title = { Text(if (wide) "Settings" else page?.title ?: "Settings") },
                 subtitle = { Text(if (wide) "PadBridge for ${os.label}" else page?.subtitle?.invoke(os) ?: "PadBridge for ${os.label}") },
                 navigationIcon = {
-                    IconButton(onClick = { if (page != null && !wide) page = null else onBack() }) {
+                    IconButton(onClick = { if (page != null && !wide && startPage == null) page = null else onBack() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
                     }
                 },
@@ -499,7 +557,9 @@ fun SettingsScreen(
                     .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(ScreenPadding),
             ) {
-                SettingsCategories(os, selected = shown, onOpen = { page = it })
+                SettingsSearch(query) { query = it }
+                if (query.isBlank()) SettingsCategories(os, selected = shown, onOpen = { page = it })
+                else SearchResults(query) { page = it; query = "" }
                 Text(
                     "PadBridge ${activity.versionName()} · HID descriptor v${HidDescriptor.VERSION} · ${hid.state.name.lowercase()}",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -880,11 +940,13 @@ enum class SettingsPage(
     val subtitle: (dev.padbridge.HostOs) -> String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
 ) {
+    GENERAL("General", { "Computer type, haptics, reconnecting, setup again" }, Icons.Rounded.Tune),
     TRACKPAD("Trackpad", { "Speed, scrolling, taps and the native touchpad" }, Icons.Rounded.TouchApp),
     GESTURES("Gestures", { "What each multi-finger gesture does on ${it.label}" }, Icons.Rounded.Gesture),
-    MOTION("Air mouse & gyro", { "Phone motion for the air mouse and gamepad" }, Icons.Rounded.ScreenRotation),
-    APPEARANCE("Appearance", { "Theme, wallpaper colors and pure black" }, Icons.Rounded.Palette),
-    GENERAL("General", { "Computer type, reconnect, haptics, setup" }, Icons.Rounded.Tune),
+    KEYBOARD("Keyboard", { "Word suggestions, TrackPoint and key rollover" }, Icons.Rounded.Keyboard),
+    MOTION("Air mouse & gamepad", { "Phone motion for the air mouse and gamepad gyro" }, Icons.Rounded.ScreenRotation),
+    SCREEN("Screen", { "Keep awake, dim when idle, full screen and Do Not Disturb" }, Icons.Rounded.Fullscreen),
+    APPEARANCE("Appearance", { "Theme, colors, realistic look and blur" }, Icons.Rounded.Palette),
     ABOUT("About", { "What's new, updates and the developer" }, Icons.Rounded.Info),
 }
 
@@ -912,6 +974,93 @@ private fun SettingsCategories(os: dev.padbridge.HostOs, selected: SettingsPage?
                 supportingContent = { Text(p.subtitle(os)) },
                 trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
             ) { Text(p.title, fontWeight = FontWeight.Medium) }
+        }
+    }
+}
+
+/** Every setting by name, with words people might search for, and the page it's on. */
+private val SearchIndex: List<Triple<String, SettingsPage, String>> = listOf(
+    Triple("Computer type", SettingsPage.GENERAL, "windows mac macos linux os shortcuts"),
+    Triple("Haptic feedback", SettingsPage.GENERAL, "vibration vibrate buzz click sound motor"),
+    Triple("Reconnect to last computer", SettingsPage.GENERAL, "auto connect startup"),
+    Triple("Show all paired devices", SettingsPage.GENERAL, "phones speakers list"),
+    Triple("Run setup again", SettingsPage.GENERAL, "wizard onboarding permissions pair"),
+    Triple("Root mode", SettingsPage.GENERAL, "experimental speaker device class controller identity xbox"),
+    Triple("Pointer speed", SettingsPage.TRACKPAD, "cursor mouse sensitivity fast slow"),
+    Triple("Scroll speed", SettingsPage.TRACKPAD, "scrolling wheel"),
+    Triple("Natural scrolling", SettingsPage.TRACKPAD, "reverse invert direction"),
+    Triple("Scroll momentum", SettingsPage.TRACKPAD, "inertia flick"),
+    Triple("Scroll rails", SettingsPage.TRACKPAD, "lock axis"),
+    Triple("Edge scroll strips", SettingsPage.TRACKPAD, "side edge"),
+    Triple("Two-finger swipe for back / forward", SettingsPage.TRACKPAD, "navigate history"),
+    Triple("Tap to click", SettingsPage.TRACKPAD, "tap click"),
+    Triple("Double-tap window", SettingsPage.TRACKPAD, "double click timing"),
+    Triple("Ignore resting fingers", SettingsPage.TRACKPAD, "dex thumb rest"),
+    Triple("Palm rejection", SettingsPage.TRACKPAD, "palm typing accidental"),
+    Triple("Show click buttons", SettingsPage.TRACKPAD, "left right buttons"),
+    Triple("S Pen and stylus", SettingsPage.TRACKPAD, "pen hover spen"),
+    Triple("Native touchpad for Windows and Linux", SettingsPage.TRACKPAD, "precision touchpad ptp raw"),
+    Triple("Three-finger drag", SettingsPage.TRACKPAD, "drag windows select"),
+    Triple("Gestures", SettingsPage.GESTURES, "three four finger swipe tap pinch dex shortcuts"),
+    Triple("Word suggestions", SettingsPage.KEYBOARD, "predict prediction autocomplete spell"),
+    Triple("Suggestions learn your words", SettingsPage.KEYBOARD, "learn forget dictionary"),
+    Triple("Phone keyboard learns from typing", SettingsPage.KEYBOARD, "gboard incognito"),
+    Triple("TrackPoint", SettingsPage.KEYBOARD, "nub nipple thinkpad sensitivity"),
+    Triple("N-key rollover", SettingsPage.KEYBOARD, "nkro keys games chords"),
+    Triple("Air mouse speed", SettingsPage.MOTION, "gyro motion pointer"),
+    Triple("Air mouse always aims", SettingsPage.MOTION, "gyro"),
+    Triple("Gamepad gyro sensitivity", SettingsPage.MOTION, "controller motion aim"),
+    Triple("Keep screen on while connected", SettingsPage.SCREEN, "awake sleep timeout"),
+    Triple("Dim to outline mode when idle", SettingsPage.SCREEN, "aod always on display dim battery"),
+    Triple("Hide app bars on input screens", SettingsPage.SCREEN, "full screen fullscreen immersive"),
+    Triple("Do Not Disturb in full screen", SettingsPage.SCREEN, "dnd notifications silence"),
+    Triple("Theme", SettingsPage.APPEARANCE, "dark light realistic skeuomorphic"),
+    Triple("Colors", SettingsPage.APPEARANCE, "palette wallpaper dynamic custom two-tone accent"),
+    Triple("Pure black", SettingsPage.APPEARANCE, "oled amoled dark mode"),
+    Triple("Blur and transparency", SettingsPage.APPEARANCE, "glass"),
+    Triple("Check for updates", SettingsPage.ABOUT, "update version github"),
+    Triple("What's new", SettingsPage.ABOUT, "changelog"),
+    Triple("Report a problem", SettingsPage.ABOUT, "bug issue help"),
+    Triple("Licenses", SettingsPage.ABOUT, "open source"),
+    Triple("Stop PadBridge", SettingsPage.ABOUT, "quit exit stop service"),
+)
+
+@Composable
+private fun SettingsSearch(query: String, onChange: (String) -> Unit) {
+    androidx.compose.material3.OutlinedTextField(
+        value = query, onValueChange = onChange,
+        placeholder = { Text("Search settings") },
+        leadingIcon = { Icon(Icons.Rounded.Search, null) },
+        trailingIcon = if (query.isNotEmpty()) ({
+            IconButton(onClick = { onChange("") }) { Icon(Icons.Rounded.Close, "Clear") }
+        }) else null,
+        singleLine = true,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
+}
+
+@Composable
+private fun SearchResults(query: String, onOpen: (SettingsPage) -> Unit) {
+    val words = query.lowercase().split(' ').filter { it.isNotBlank() }
+    val hits = SearchIndex.filter { (title, page, keys) ->
+        val hay = "$title ${page.title} $keys".lowercase()
+        words.all { it in hay }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap), modifier = Modifier.padding(top = 8.dp)) {
+        if (hits.isEmpty()) Text(
+            "Nothing matches “$query”.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(16.dp),
+        )
+        hits.forEachIndexed { i, (title, page, _) ->
+            SegmentedListItem(
+                onClick = { onOpen(page) },
+                shapes = ListItemDefaults.segmentedShapes(i, hits.size),
+                colors = segColors(),
+                leadingContent = { Icon(page.icon, null) },
+                supportingContent = { Text(page.title) },
+                trailingContent = { Icon(Icons.Rounded.ChevronRight, null) },
+            ) { Text(title) }
         }
     }
 }

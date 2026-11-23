@@ -55,6 +55,8 @@ import androidx.compose.material.icons.rounded.BrightnessLow
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Mouse
 import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
@@ -287,12 +289,13 @@ fun TrackpadScreen(
         MenuEntry("Trackpad only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
         MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
             if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
-        MenuEntry("Air mouse", Icons.Rounded.Mouse, action = onAirMouse),
+        MenuEntry("Air mouse", Icons.Rounded.Mouse, divider = true, action = onAirMouse),
         MenuEntry("Drawing tablet", Icons.Rounded.Draw, action = onTablet),
     ) + (if (dev.padbridge.BuildConfig.ROOT_FEATURES) listOf(
         MenuEntry("Floating trackpad over other apps", androidx.compose.material.icons.Icons.Rounded.Layers) { dev.padbridge.FloatingPadService.start(ctx) },
     ) else emptyList()) + listOf(
-        MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates) { guide = true },
+        MenuEntry("Gesture guide", Icons.Rounded.TipsAndUpdates, divider = true) { guide = true },
+        MenuEntry("Trackpad settings", Icons.Rounded.Tune) { SettingsLink.open(SettingsPage.TRACKPAD) },
         MenuEntry("Auto-rotate", Icons.Rounded.ScreenRotation, checked = orientation == 0, divider = true) {
             orientation = 0; Settings.trackpadOrientation = 0
         },
@@ -463,6 +466,8 @@ fun KeyboardScreen(
                     MenuEntry("Keyboard only, edge to edge", Icons.Rounded.OpenInFull, action = onFullDisplay),
                     MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
                         if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
+                    MenuEntry("Layout and size", Icons.Rounded.Dashboard, divider = true) { sheet = true },
+                    MenuEntry("Keyboard settings", Icons.Rounded.Tune) { SettingsLink.open(SettingsPage.KEYBOARD) },
                 )
             )
         }
@@ -1401,15 +1406,24 @@ fun FullDisplayTrackpad(hid: HidUi, osVersion: Int, aod: Boolean, onAod: () -> U
 @Composable
 fun AirMouseScreen(
     fullscreen: Boolean = false, onToggleFullscreen: () -> Unit = {}, onAod: () -> Unit = {}, aod: Boolean = false,
+    onBack: () -> Unit = {},
 ) {
     var always by remember { mutableStateOf(Settings.airAlwaysAim) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            // Air mouse lives inside the trackpad: one tap back to it.
+            if (!aod) androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back to trackpad")
+            }
             TitleChip("Air mouse", aod, null)
             Spacer(Modifier.weight(1f))
             AodButton(aod, onAod)
-            FullscreenButton(fullscreen, onToggleFullscreen)
+            if (!aod) OverflowMenu(listOf(
+                MenuEntry(if (fullscreen) "Show app bars" else "Hide app bars",
+                    if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, action = onToggleFullscreen),
+                MenuEntry("Air mouse settings", Icons.Rounded.Tune) { SettingsLink.open(SettingsPage.MOTION) },
+            ))
             Spacer(Modifier.width(4.dp))
             ToggleButton(
                 checked = always,
@@ -1961,19 +1975,21 @@ fun NotConnectedBanner(hid: HidUi, onGoConnect: () -> Unit, modifier: Modifier =
     // Registering is a normal second or two at startup: show progress, not a "Fix" button.
     val connecting = hid.state == HidManager.State.CONNECTING || hid.state == HidManager.State.REGISTERING
     val ready = hid.state == HidManager.State.READY
+    val fix = rememberBluetoothFix(hid)
     // With the top bar's status pill on screen, "Not connected" / "Connecting…" would repeat it: keep the
-    // banner only for a one-tap reconnect or an error that needs fixing.
+    // banner only for a one-tap reconnect or a problem that needs fixing.
     val topBar = LocalTopBarStatus.current
     val visible = !hid.connected && (!topBar || (!connecting && (!ready || last != null)))
     AnimatedVisibility(visible, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = if (!ready && !connecting) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = if (!ready && !connecting) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
             modifier = modifier.fillMaxWidth(),
         ) {
             Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (connecting) androidx.compose.material3.LoadingIndicator(Modifier.size(28.dp))
-                else Icon(Icons.Rounded.LinkOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                else Icon(if (ready) Icons.Rounded.LinkOff else Icons.Rounded.ErrorOutline, null)
                 Spacer(Modifier.width(12.dp))
                 Text(
                     when {
@@ -1981,21 +1997,22 @@ fun NotConnectedBanner(hid: HidUi, onGoConnect: () -> Unit, modifier: Modifier =
                         connecting -> "Connecting…"
                         ready && topBar && last != null -> "Last used"
                         ready -> "Not connected"
-                        else -> hid.detail.ifEmpty { "Bluetooth isn't ready" }
+                        else -> fix.problem.ifEmpty { "Bluetooth isn't ready" }
                     },
-                    style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 3,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (!connecting) {
-                    if (ready && last != null) {
-                        androidx.compose.material3.FilledTonalButton(onClick = { HidManager.connect(last) }) {
+                    when {
+                        ready && last != null -> androidx.compose.material3.FilledTonalButton(onClick = { HidManager.connect(last) }) {
                             Text("Connect to ${HidManager.name(last)}", maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.widthIn(max = 160.dp))
                         }
-                    } else {
-                        androidx.compose.material3.TextButton(onClick = onGoConnect) { Text(if (ready) "Choose computer" else "Fix") }
+                        ready -> androidx.compose.material3.TextButton(onClick = onGoConnect) { Text("Choose computer") }
+                        fix.action != null -> androidx.compose.material3.Button(onClick = fix.run) { Text(fix.action) }
+                        else -> androidx.compose.material3.TextButton(onClick = onGoConnect) { Text("Details") }
                     }
                 }
             }

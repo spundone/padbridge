@@ -89,7 +89,10 @@ fun ConnectScreen(
     onOpen: (Dest) -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    val hosts = remember(hid.version) { HidManager.bondedHosts(Settings.showAllDevices) }
+    // The last-used computer first: it's the one you most likely want again.
+    val hosts = remember(hid.version) {
+        HidManager.bondedHosts(Settings.showAllDevices).sortedBy { if (it.address == Settings.lastHost) 0 else 1 }
+    }
     val phoneName = remember(hid.version) {
         try { BluetoothAdapter.getDefaultAdapter()?.name } catch (_: SecurityException) { null } ?: "this phone"
     }
@@ -458,24 +461,24 @@ private fun StatusHero(hid: HidUi) {
             if (hid.connected) Text("Connected", style = MaterialTheme.typography.labelLarge)
             Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             // The detail repeats the computer's name once connected; the eyebrow above says it instead.
-            if (!hid.connected && hid.detail.isNotEmpty()) {
-                Gap(4)
-                Text(hid.detail, style = MaterialTheme.typography.bodyMedium)
+            val fix = rememberBluetoothFix(hid)
+            val why = when (hid.state) {
+                State.NO_PERMISSION, State.IDLE, State.BLUETOOTH_OFF -> fix.problem
+                State.READY -> "Pick a computer below, or find a new one."
+                else -> hid.detail
             }
-            val showRetry = hid.state in setOf(State.UNSUPPORTED, State.IDLE, State.BLUETOOTH_OFF, State.NO_PERMISSION)
-            if (hid.connected || hid.state == State.CONNECTING || showRetry) {
+            if (!hid.connected && why.isNotEmpty()) {
+                Gap(4)
+                Text(why, style = MaterialTheme.typography.bodyMedium)
+            }
+            val showFix = fix.action != null && !hid.connected && hid.state != State.CONNECTING
+            if (hid.connected || hid.state == State.CONNECTING || showFix) {
                 Gap(16)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (hid.connected || hid.state == State.CONNECTING) {
                         OutlinedButton(onClick = { HidManager.disconnect() }) { Text("Disconnect") }
                     }
-                    if (hid.needsBluetoothRestart || hid.state == State.BLUETOOTH_OFF) {
-                        Button(onClick = {
-                            ctx.startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
-                        }) { Text("Open Bluetooth settings") }
-                    } else if (showRetry) {
-                        Button(onClick = { HidService.start(ctx); HidManager.restart(ctx) }) { Text("Retry") }
-                    }
+                    if (showFix) Button(onClick = fix.run) { Text(fix.action!!) }
                 }
             }
         }

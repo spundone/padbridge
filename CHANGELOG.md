@@ -9,6 +9,25 @@ undated.
 
 ## [Unreleased]
 
+### Changed
+- Setup is shorter and smarter: one Allow button asks for the permission and moves on by itself, picking a
+  computer type moves on, pairing is three numbered steps with troubleshooting folded away, a connection moves on
+  by itself, and the last step lets you pick where to start (trackpad, keyboard, remote, gamepad, air mouse or
+  drawing tablet). On tablets it sits in a readable column.
+- Problems say what's wrong and offer the fix: "Permission needed" with Allow (or the app's settings page once
+  Android stops asking), "Bluetooth off" with Turn on, "Stopped" with Start, instead of "Needs attention" and
+  "Fix".
+- Settings are regrouped: a new Keyboard page (word suggestions, TrackPoint, key rollover) and Screen page (keep
+  awake, dim when idle, full screen, Do Not Disturb); General comes first.
+- Search settings by name or by what they do ("dark", "vibration", "nkro").
+- Each mode's ⋮ menu links straight to its settings, and Back returns to the mode. The trackpad menu is grouped
+  into view, other modes, help and rotation. The air mouse has a back button.
+- The last-used computer is listed first.
+
+### Fixed
+- Skipping setup no longer leaves PadBridge stopped with no explanation.
+- Revoking Nearby devices in the phone's settings no longer crashes the app when Android restarts its service.
+
 ## [1.8.0] – 2026-11-20
 
 ### Added

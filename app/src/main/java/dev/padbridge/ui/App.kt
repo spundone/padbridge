@@ -108,6 +108,13 @@ enum class Dest(val label: String, val icon: ImageVector, val selectedIcon: Imag
     GAMEPAD("Gamepad", Icons.Outlined.SportsEsports, Icons.Rounded.SportsEsports),
 }
 
+/** Opens Settings at a page from anywhere (an input screen's ⋮ menu, a hint). */
+object SettingsLink {
+    var page by androidx.compose.runtime.mutableStateOf<SettingsPage?>(null); private set
+    var tick by androidx.compose.runtime.mutableIntStateOf(0); private set
+    fun open(p: SettingsPage?) { page = p; tick++ }
+}
+
 /** Bumped when the computer type changes, from anywhere (Settings, Connect, the keyboard's layout sheet). */
 object OsBus { var version by androidx.compose.runtime.mutableIntStateOf(0) }
 
@@ -115,6 +122,11 @@ object OsBus { var version by androidx.compose.runtime.mutableIntStateOf(0) }
 fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
     var dest by rememberSaveable { mutableStateOf(if (Settings.lastHost != null) Dest.TRACKPAD else Dest.CONNECT) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    var settingsStart by remember { mutableStateOf<SettingsPage?>(null) }
+    LaunchedEffect(SettingsLink.tick) {
+        if (SettingsLink.tick > 0) { settingsStart = SettingsLink.page; settingsOpen = true }
+    }
+    LaunchedEffect(settingsOpen) { if (!settingsOpen) settingsStart = null }
     // Bumped when the computer type changes so OS-specific screens rebuild.
     var osVersion by OsBus::version
 
@@ -178,14 +190,19 @@ fun PadBridgeApp(hid: HidUi, activity: MainActivity) {
 
     var setupOpen by rememberSaveable { mutableStateOf(!Settings.setupDone) }
     if (setupOpen) {
-        SetupScreen(hid, activity) { setupOpen = false; settingsOpen = false; osVersion++ }
+        SetupScreen(hid, activity) { to ->
+            setupOpen = false; settingsOpen = false; osVersion++
+            to?.let { dest = it }
+            // Skipped the permission step: still start, so the app shows what's missing and a button to fix it.
+            if (dev.padbridge.Perms.hasConnect(activity)) activity.startHid() else HidManager.start(activity)
+        }
         return
     }
     if (settingsOpen) {
         BackHandler { settingsOpen = false }
         SettingsScreen(
             hid = hid, onBack = { settingsOpen = false }, onOsChanged = { osVersion++ }, activity = activity,
-            onRunSetup = { setupOpen = true },
+            onRunSetup = { setupOpen = true }, startPage = settingsStart,
         )
         return
     }
@@ -345,7 +362,7 @@ private fun InputDest(
         Dest.TRACKPAD -> TrackpadScreen(hid, osVersion, fullscreen, onToggleFullscreen, onAod, aod, onFullDisplay, onGoConnect, onAirMouse, onTablet)
         Dest.TABLET -> TabletScreen(hid, onTrackpad)
         Dest.KEYBOARD -> KeyboardScreen(hid, osVersion, fullscreen, onToggleFullscreen, onFullDisplay, onGoConnect, aod, onAod)
-        Dest.AIR_MOUSE -> AirMouseScreen(fullscreen, onToggleFullscreen, onAod, aod)
+        Dest.AIR_MOUSE -> AirMouseScreen(fullscreen, onToggleFullscreen, onAod, aod, onBack = onTrackpad)
         Dest.REMOTE -> RemoteScreen(hid, osVersion, aod, onAod, onGoConnect)
         else -> {}
     }
@@ -369,13 +386,7 @@ fun StatusPill(hid: HidUi, onClick: () -> Unit) {
         else -> cs.errorContainer to cs.onErrorContainer
         }
     }
-    val text = if (hid.local) hid.hostName ?: "This phone" else when (hid.state) {
-        HidManager.State.CONNECTED -> hid.hostName ?: "Connected"
-        HidManager.State.CONNECTING -> "Connecting"
-        HidManager.State.REGISTERING -> "Starting"
-        HidManager.State.READY -> "Not connected"
-        else -> "Needs attention"
-    }
+    val text = shortStatus(hid)
     val colorSpec = MaterialTheme.motionScheme.defaultEffectsSpec<androidx.compose.ui.graphics.Color>()
     val bgA by androidx.compose.animation.animateColorAsState(bg, colorSpec, label = "pillBg")
     val fgA by androidx.compose.animation.animateColorAsState(fg, colorSpec, label = "pillFg")

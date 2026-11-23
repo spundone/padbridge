@@ -80,11 +80,20 @@ class HidService : Service(), HidManager.Listener {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Restarted by the system after Nearby devices was revoked: a connected-device service isn't allowed any
+        // more, and startForeground would crash the app. Stop quietly; the app shows how to allow it again.
+        if (!Perms.hasConnect(this)) { stopSelf(); return START_NOT_STICKY }
         val n = buildNotification()
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
-        } else {
-            startForeground(NOTIF_ID, n)
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            } else {
+                startForeground(NOTIF_ID, n)
+            }
+        } catch (_: Exception) {
+            // Not allowed right now (permission or background-start limits): don't take the app down with it.
+            stopSelf()
+            return START_NOT_STICKY
         }
         HidManager.start(this)
         return START_STICKY
