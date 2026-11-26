@@ -22,7 +22,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build GitHub and Play flavors
-        run: ./gradlew --no-daemon assembleGithubRelease assemblePlayRelease lintGithubRelease
+        run: ./gradlew --no-daemon assembleGithubStandardRelease assembleGithubControlRelease assemblePlayStandardRelease lintGithubStandardRelease
 
       - uses: actions/upload-artifact@v4
         with:

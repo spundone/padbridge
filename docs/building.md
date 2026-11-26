@@ -27,24 +27,31 @@ From 0.8.0 the app has two product flavors:
 | `github` | GitHub Releases, sideloading | Includes experimental [root mode](root-mode.md) |
 | `play` | Google Play | No root mode |
 
-Everything else is the same.
+GitHub builds also come in two `access` flavors:
+
+| Flavor | Release asset | Differences |
+|---|---|---|
+| `standard` | `PadBridge-vX.apk` | No accessibility service, so Android's fraud protection doesn't block installing it from a browser or file manager |
+| `control` | `PadBridge-vX-control.apk` | Adds the accessibility service for "Control this phone" without root |
+
+Play builds are `standard` only. Everything else is the same.
 
 ## Commands
 
 ```sh
 # Debug build of the GitHub flavor
-./gradlew assembleGithubDebug
+./gradlew assembleGithubStandardDebug
 
-# Release APK for GitHub Releases (R8-shrunk)
-./gradlew assembleGithubRelease
-# -> app/build/outputs/apk/github/release/
+# Release APKs for GitHub Releases (R8-shrunk)
+./gradlew assembleGithubStandardRelease assembleGithubControlRelease
+# -> app/build/outputs/apk/githubStandard/release/ and githubControl/release/
 
 # Release bundle for Google Play
-./gradlew bundlePlayRelease
-# -> app/build/outputs/bundle/playRelease/
+./gradlew bundlePlayStandardRelease
+# -> app/build/outputs/bundle/playStandardRelease/
 
 # Install a debug build on a connected phone
-./gradlew installGithubDebug
+./gradlew installGithubStandardDebug
 adb logcat -s PadBridge
 ```
 

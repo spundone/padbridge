@@ -2,7 +2,7 @@
 # Captures the README screenshots on an emulator with a debug build in demo mode (a fake connection to
 # "MacBook Pro", made-up device names, dark theme, clean status bar). Nothing real is shown.
 #
-#   ./gradlew assembleGithubDebug
+#   ./gradlew assembleGithubStandardDebug
 #   scripts/screenshots.sh <avd-name> phone    # e.g. a Pixel AVD, portrait
 #   scripts/screenshots.sh <avd-name> tablet   # e.g. pixel_tablet (natural landscape)
 #

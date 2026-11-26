@@ -66,11 +66,13 @@ object Updater {
                 Settings.lastUpdateCheck = System.currentTimeMillis()
                 val tag = json.getString("tag_name")
                 val version = tag.removePrefix("v")
+                // Each build updates to its own APK: the Control build (with the accessibility service) to
+                // PadBridge-vX-control.apk, the standard build to PadBridge-vX.apk.
+                val control = BuildConfig.A11Y_CONTROL
                 val asset = json.getJSONArray("assets").let { arr ->
-                    (0 until arr.length()).map { arr.getJSONObject(it) }
-                        .firstOrNull { it.getString("name") == "PadBridge-$tag.apk" }
-                        ?: (0 until arr.length()).map { arr.getJSONObject(it) }
-                            .firstOrNull { it.getString("name").endsWith(".apk") }
+                    val all = (0 until arr.length()).map { arr.getJSONObject(it) }
+                    all.firstOrNull { it.getString("name") == if (control) "PadBridge-$tag-control.apk" else "PadBridge-$tag.apk" }
+                        ?: all.firstOrNull { val n = it.getString("name"); n.endsWith(".apk") && n.endsWith("-control.apk") == control }
                 }
                 if (!Updates.newer(version, currentVersion(ctx)) || asset == null) {
                     post(if (manual) UpdateState.UpToDate else UpdateState.Idle)

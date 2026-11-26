@@ -21,7 +21,7 @@ addresses appear. It only exists in debug builds
 ## Regenerating
 
 ```sh
-./gradlew assembleGithubDebug
+./gradlew assembleGithubStandardDebug
 scripts/screenshots.sh <phone-avd> phone
 scripts/screenshots.sh <tablet-avd> tablet
 ```

@@ -90,17 +90,34 @@ fun LocalControlCard() {
                 Text(
                     when {
                         backend != null -> "Controlling ${Local.displayName ?: "this phone"} · $backend"
+                        !dev.padbridge.BuildConfig.A11Y_CONTROL ->
+                            if (useRoot) "Waiting for root. Without root, this needs the PadBridge Control build"
+                            else "Turn on root below, or install the PadBridge Control build"
                         useRoot -> "Waiting for root, or turn on the accessibility service below"
                         else -> "Turn on the accessibility service below"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (backend != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                 )
-                if (!a11y) FilledTonalButton(onClick = {
+                if (!a11y && dev.padbridge.BuildConfig.A11Y_CONTROL) FilledTonalButton(onClick = {
                     ctx.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }) {
                     Icon(Icons.Rounded.Accessibility, null, Modifier.size(18.dp))
                     Text("  Turn on \"PadBridge: control this phone\"")
+                }
+                // The standard APK has no accessibility service (Android blocks sideloading apps with one), so
+                // without root this needs the Control build from the same release.
+                if (!dev.padbridge.BuildConfig.A11Y_CONTROL && backend == null) {
+                    Text(
+                        "Without root, PadBridge drives this phone through an accessibility service. It's in a separate " +
+                            "download, PadBridge-vX-control.apk on the releases page, because Android blocks installing " +
+                            "apps with one from a browser or file manager. Install it with ADB or an app store like " +
+                            "Obtainium; it updates over this app and keeps your settings.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(onClick = {
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("$REPO_URL/releases/latest")))
+                    }) { Text("Open the releases page") }
                 }
                 if (!overlay && !a11y) OutlinedButton(onClick = {
                     ctx.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,

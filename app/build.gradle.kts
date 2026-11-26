@@ -23,13 +23,24 @@ android {
         applicationId = "dev.padbridge"
         minSdk = 28
         targetSdk = 36
-        versionCode = 36
-        versionName = "1.9.0"
+        versionCode = 37
+        versionName = "1.10.0"
     }
 
     // github: everything, including experimental root mode. play: Play Store build without root features.
-    flavorDimensions += "dist"
+    // access (GitHub only): standard leaves out the accessibility service, so Android's fraud protection doesn't
+    // block installing the APK from a browser or file manager; control adds it for "Control this phone" without root.
+    flavorDimensions += listOf("dist", "access")
     productFlavors {
+        create("standard") {
+            dimension = "access"
+            buildConfigField("boolean", "A11Y_CONTROL", "false")
+        }
+        create("control") {
+            dimension = "access"
+            buildConfigField("boolean", "A11Y_CONTROL", "true")
+            versionNameSuffix = "-control"
+        }
         create("github") {
             dimension = "dist"
             buildConfigField("boolean", "ROOT_FEATURES", "true")
@@ -119,6 +130,10 @@ abstract class ChangelogAsset : DefaultTask() {
 }
 
 androidComponents {
+    // Play gets the standard build only.
+    beforeVariants { v ->
+        if (v.productFlavors.contains("dist" to "play") && v.productFlavors.contains("access" to "control")) v.enable = false
+    }
     onVariants { v ->
         val task = tasks.register<ChangelogAsset>("changelogAsset${v.name.replaceFirstChar { it.uppercase() }}") {
             source.set(rootProject.layout.projectDirectory.file("CHANGELOG.md"))

@@ -21,7 +21,7 @@ with the label `compatibility` (or just say "compatibility report").
 ## Development setup
 
 See [docs/building.md](docs/building.md). In short: JDK 17, Android SDK with platform 37, an x86_64 build host,
-then `./gradlew assembleGithubDebug`.
+then `./gradlew assembleGithubStandardDebug`.
 
 Read [docs/architecture.md](docs/architecture.md) before larger changes. It explains the HID descriptor, the
 `hid-io` thread and the gesture engine.

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Control build only (PadBridge-vX-control.apk): the accessibility service for "Control this phone" without root.
+  Kept out of the standard APK because Android's fraud protection blocks sideloading apps that declare one.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- "Control this phone" without root: gestures at the cursor and typing into the focused field. -->
+        <service
+            android:name=".LocalA11yService"
+            android:exported="false"
+            android:label="@string/local_a11y_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/local_accessibility" />
+        </service>
+    </application>
+</manifest>

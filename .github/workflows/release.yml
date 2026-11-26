@@ -46,13 +46,14 @@ jobs:
           } > keystore.properties
 
       - name: Build
-        run: ./gradlew --no-daemon assembleGithubRelease bundlePlayRelease
+        run: ./gradlew --no-daemon assembleGithubStandardRelease assembleGithubControlRelease bundlePlayStandardRelease
 
       - name: Collect artifacts
         run: |
           mkdir out
-          cp app/build/outputs/apk/github/release/*.apk "out/PadBridge-${GITHUB_REF_NAME}.apk"
-          cp app/build/outputs/bundle/playRelease/*.aab "out/PadBridge-${GITHUB_REF_NAME}-play.aab"
+          cp app/build/outputs/apk/githubStandard/release/*.apk "out/PadBridge-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/githubControl/release/*.apk "out/PadBridge-${GITHUB_REF_NAME}-control.apk"
+          cp app/build/outputs/bundle/playStandardRelease/*.aab "out/PadBridge-${GITHUB_REF_NAME}-play.aab"
 
       - uses: softprops/action-gh-release@v2
         with:

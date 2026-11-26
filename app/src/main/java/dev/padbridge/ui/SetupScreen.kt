@@ -315,17 +315,39 @@ private fun PairStep(hid: HidUi) {
     }
     // Already paired with a computer (setup run again): offer it first.
     val known = remember(hid.version) { HidManager.bondedHosts(false) }
-    Title("Pair your computer", "Three steps, once. After that PadBridge reconnects by itself.")
     val os = Settings.hostOs
-    val steps = listOf(
-        when (os) {
-            HostOs.WINDOWS -> "On the PC, open Settings › Bluetooth & devices and leave it open."
-            HostOs.MAC -> "On the Mac, open System Settings › Bluetooth and leave it open."
-            HostOs.LINUX -> "On the computer or TV, open its Bluetooth settings and leave them open."
-        },
-        "Tap Find nearby devices below and pick your computer.",
-        "Accept the pairing prompt on both screens. The codes should match.",
-    )
+    // Macs, Linux and TVs read the phone's HID record most reliably when they start the pairing themselves; Windows
+    // pairs well from the phone (see docs/pairing.md).
+    val fromComputer = os != HostOs.WINDOWS
+    val phoneName = remember {
+        try { BluetoothAdapter.getDefaultAdapter()?.name } catch (_: SecurityException) { null } ?: "this phone"
+    }
+    val makeVisible = {
+        try {
+            HidManager.openPairingWindow()
+            ctx.startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300))
+        } catch (_: Exception) {}
+    }
+    Title("Pair your computer", "Once. After that PadBridge reconnects by itself.")
+    val steps = when (os) {
+        HostOs.WINDOWS -> listOf(
+            "On the PC, open Settings › Bluetooth & devices and leave it open.",
+            "Tap Find nearby devices below and pick your PC.",
+            "Accept the pairing prompt on both screens (on the PC it may be a notification). The codes should match.",
+            "Windows leaves HID off for phones: in Control Panel › Devices and Printers, right-click $phoneName › " +
+                "Properties › Services, tick “Drivers for keyboard, mice, etc. (HID)” and click OK.",
+        )
+        HostOs.MAC -> listOf(
+            "On the Mac, open System Settings › Bluetooth.",
+            "Tap Make this phone visible below.",
+            "On the Mac, click Connect next to $phoneName and accept the code on both screens. PadBridge connects by itself.",
+        )
+        HostOs.LINUX -> listOf(
+            "On the computer or TV, open its Bluetooth (or accessory pairing) settings.",
+            "Tap Make this phone visible below.",
+            "On the computer or TV, pick $phoneName and accept the code on both screens. PadBridge connects by itself.",
+        )
+    }
     steps.forEachIndexed { i, t ->
         Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(28.dp)) {
@@ -351,25 +373,41 @@ private fun PairStep(hid: HidUi) {
             }
         }
     }
+    // What went wrong last (pairing didn't complete, the computer refused or didn't answer): say so here, not only
+    // on the Connect tab.
+    val problem = hid.state == HidManager.State.READY && hid.detail.isNotBlank() && hid.detail != HidManager.READY_DETAIL
+    if (problem) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        ) {
+            Text(hid.detail, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
+        }
+    }
     known.take(3).forEach { d ->
         FilledTonalButton(
             onClick = { HidManager.connect(d) }, enabled = ready,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         ) { Text("Connect to ${HidManager.name(d)}") }
     }
-    Button(onClick = { nearby = true }, enabled = ready, modifier = Modifier.fillMaxWidth().height(ButtonDefaults.MediumContainerHeight)) {
-        Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp)); Text("Find nearby devices")
+    if (fromComputer) {
+        Button(onClick = makeVisible, enabled = ready, modifier = Modifier.fillMaxWidth().height(ButtonDefaults.MediumContainerHeight)) {
+            Icon(Icons.Rounded.Visibility, null); Spacer(Modifier.width(8.dp)); Text("Make this phone visible")
+        }
+        Spacer(Modifier.height(4.dp))
+        TextButton(onClick = { nearby = true }, enabled = ready) {
+            Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Or find it from this phone")
+        }
+    } else {
+        Button(onClick = { nearby = true }, enabled = ready, modifier = Modifier.fillMaxWidth().height(ButtonDefaults.MediumContainerHeight)) {
+            Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp)); Text("Find nearby devices")
+        }
+        Spacer(Modifier.height(4.dp))
+        TextButton(onClick = makeVisible, enabled = ready) {
+            Icon(Icons.Rounded.Visibility, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("PC can't find it? Make this phone visible")
+        }
     }
-    Spacer(Modifier.height(4.dp))
-    TextButton(
-        onClick = {
-            try {
-                HidManager.openPairingWindow()
-                ctx.startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300))
-            } catch (_: Exception) {}
-        },
-        enabled = ready,
-    ) { Icon(Icons.Rounded.Visibility, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Computer can't find it? Make this phone visible") }
     if (hid.state == HidManager.State.CONNECTING) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
             androidx.compose.material3.LoadingIndicator(Modifier.size(28.dp))
@@ -381,11 +419,7 @@ private fun PairStep(hid: HidUi) {
     TextButton(onClick = { help = !help }) { Text(if (help) "Hide troubleshooting" else "Paired, but nothing moves?") }
     androidx.compose.animation.AnimatedVisibility(help) {
         Text(
-            when (os) {
-                HostOs.WINDOWS -> "Open Control Panel › Devices and Printers, right-click this phone › Properties › Services and " +
-                    "tick “Drivers for keyboard, mice, etc. (HID)”. "
-                else -> ""
-            } + "Paired before PadBridge was installed (for example by Phone Link)? Remove the pairing on both sides and pair again.",
+            "Paired before PadBridge was installed (for example by Phone Link)? Remove the pairing on both sides and pair again.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp),
         )

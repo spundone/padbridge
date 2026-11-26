@@ -59,8 +59,11 @@ Also:
 
 ## Install
 
-- **GitHub:** download the APK from [Releases](https://github.com/spundone/padbridge/releases) and install it
-  (allow installs from your browser or file manager).
+- **GitHub:** download `PadBridge-vX.apk` from [Releases](https://github.com/spundone/padbridge/releases) and
+  install it (allow installs from your browser or file manager). `PadBridge-vX-control.apk` is the same app plus an
+  accessibility service, for "Control this phone" without root. Android's fraud protection blocks installing apps
+  with an accessibility service from a browser or file manager ("App blocked to protect your device"), so install
+  that one with `adb install` or an app store such as Obtainium. Either APK updates over the other.
 - **Google Play:** planned.
 
 The two builds differ only in that root mode is in the GitHub build. See [Building](docs/building.md#flavors).

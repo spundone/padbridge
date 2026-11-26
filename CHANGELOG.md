@@ -9,6 +9,25 @@ undated.
 
 ## [Unreleased]
 
+## [1.10.0] – 2026-11-26
+
+### Changed
+- Two GitHub APKs. `PadBridge-vX.apk` no longer includes the accessibility service, so Android's fraud protection
+  no longer blocks installing it from a browser or file manager ("App blocked to protect your device").
+  `PadBridge-vX-control.apk` keeps it, for "Control this phone" without root; install it with ADB or an app store
+  such as Obtainium. Each updates to its own APK, and either installs over the other. Updating from 1.9.0 in the app
+  moves to the standard APK.
+- Setup's pairing step follows the computer type: Macs, Linux and TVs pair from their own Bluetooth settings after
+  "Make this phone visible" (what works best for them), Windows from "Find nearby devices", with the step to turn
+  on HID for the phone shown up front.
+
+### Fixed
+- Setup now says when pairing didn't complete or the computer refused or didn't answer, instead of showing nothing.
+- Pairing from the phone: tapping a computer that's already mid-pairing waits for it instead of failing, there's
+  more time to accept the code (Windows asks in a notification), PadBridge no longer starts a second connection
+  while the computer is already connecting in, and a computer that refuses the first connection right after pairing
+  gets one retry.
+
 ## [1.9.0] – 2026-11-24
 
 ### Changed

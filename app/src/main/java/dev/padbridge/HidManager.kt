@@ -28,6 +28,10 @@ import kotlin.math.roundToInt
  */
 object HidManager {
     private const val TAG = "PadBridge"
+    /** The status line once registered with nothing to report. */
+    const val READY_DETAIL = "Pick a computer below, or find a new one."
+    /** How long to wait for both sides to confirm the pairing code (Windows asks through a notification). */
+    private const val BOND_TIMEOUT_MS = 90_000L
 
     enum class State { IDLE, BLUETOOTH_OFF, NO_PERMISSION, UNSUPPORTED, REGISTERING, READY, CONNECTING, CONNECTED }
 
@@ -349,6 +353,7 @@ object HidManager {
                         // pairing in PadBridge: remember it, and connect if the host doesn't open HID itself.
                         if (bond == BluetoothDevice.BOND_BONDED && android.os.SystemClock.uptimeMillis() < pairingWindowUntil) {
                             Settings.addKnownHost(d.address)
+                            bondedAt = d.address to android.os.SystemClock.uptimeMillis(); freshRetried = false
                             main.postDelayed({ if (host == null && connectingTo == null) connect(d) }, 4000)
                         }
                         notifyChanged(); return
@@ -360,10 +365,14 @@ object HidManager {
                             pairingTarget = null
                             main.removeCallbacks(bondTimeout)
                             Settings.addKnownHost(d.address)
+                            bondedAt = d.address to android.os.SystemClock.uptimeMillis(); freshRetried = false
                             setState(State.CONNECTING, "Paired with ${name(d)}. Connecting trackpad and keyboard…")
                             // Give the host a moment to finish reading the HID record, and to connect in by itself
-                            // (TVs and phones usually do); connect() is a no-op once it has.
-                            main.postDelayed({ if (host?.address != d.address) connect(d) }, 2500)
+                            // (TVs and phones usually do). Starting our own connection while it's connecting in
+                            // collides with it, so only if it hasn't.
+                            main.postDelayed({
+                                if (host?.address != d.address && connectingTo?.address != d.address) connect(d)
+                            }, 2500)
                         }
                         BluetoothDevice.BOND_NONE -> {
                             pairingTarget = null
@@ -383,6 +392,17 @@ object HidManager {
             "accept the prompt on the computer, then try again."
         else -> "Pairing with ${name(d)} didn't complete. Keep its Bluetooth settings open, accept the prompt on it, then try again."
     }
+
+    /**
+     * The host just paired (address, uptime). A computer that has only just paired can refuse the first HID
+     * connection while it's still setting the new device up, so that refusal gets one retry.
+     */
+    @Volatile private var bondedAt: Pair<String, Long>? = null
+    private var freshRetried = false
+
+    private fun freshlyBonded(d: BluetoothDevice) = bondedAt?.let {
+        it.first == d.address && android.os.SystemClock.uptimeMillis() - it.second < 30_000
+    } == true
 
     /** Until when a bond made from the other side counts as a PadBridge pairing (sheet open or phone made visible). */
     @Volatile private var pairingWindowUntil = 0L
@@ -445,6 +465,14 @@ object HidManager {
         }
         if (d.bondState == BluetoothDevice.BOND_BONDED) { stopDiscovery(); connect(d); return }
         pairingTarget = d
+        if (d.bondState == BluetoothDevice.BOND_BONDING) {
+            // Already pairing (tapped twice, or the computer started it): createBond() would fail, so just wait.
+            stopDiscovery()
+            setState(State.CONNECTING, "Pairing with ${name(d)}: confirm the same code on both screens.")
+            main.removeCallbacks(bondTimeout)
+            main.postDelayed(bondTimeout, BOND_TIMEOUT_MS)
+            return
+        }
         setState(State.CONNECTING, "Pairing with ${name(d)}…")
         // Bonding while inquiry is still running fails or stalls on many stacks (the radio is busy scanning), and
         // cancelDiscovery() is asynchronous, so wait until the scan has really stopped.
@@ -463,7 +491,7 @@ object HidManager {
             return
         }
         main.removeCallbacks(bondTimeout)
-        main.postDelayed(bondTimeout, 45_000)
+        main.postDelayed(bondTimeout, BOND_TIMEOUT_MS)
     }
 
     private fun major(d: BluetoothDevice): Int? = try { d.bluetoothClass?.majorDeviceClass } catch (_: SecurityException) { null }
@@ -616,7 +644,7 @@ object HidManager {
                 return
             }
             retryCount = 0
-            if (state != State.CONNECTED) setState(State.READY, "Pick a computer below, or find a new one.")
+            if (state != State.CONNECTED) setState(State.READY, READY_DETAIL)
             val target = pendingConnect
                 ?: pluggedDevice
                 ?: Settings.lastHost?.takeIf { Settings.autoReconnect }?.let {
@@ -630,6 +658,7 @@ object HidManager {
             when (st) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     host = device; connectingTo = null; connectRetries = 0; connectAttempt++
+                    bondedAt = null; freshRetried = false
                     Settings.lastHost = device.address
                     Settings.addKnownHost(device.address)
                     resetReportState()
@@ -655,7 +684,11 @@ object HidManager {
                         // not listening yet. Retry a couple of times; HID stays registered, so the computer can also
                         // connect in by itself (Windows often does a minute later).
                         val noAnswer = !wasConnected && !refused && elapsed < 9000
-                        if (noAnswer && connectRetries < 2) {
+                        if (refused && freshlyBonded(device) && !freshRetried) {
+                            freshRetried = true
+                            setState(State.CONNECTING, "${name(device)} is still setting up the new pairing, trying again…")
+                            main.postDelayed({ if (host == null) connect(device, retry = true) }, 4000)
+                        } else if (noAnswer && connectRetries < 2) {
                             connectRetries++
                             setState(State.CONNECTING, "${name(device)} didn't answer, trying again ($connectRetries/2)…")
                             main.postDelayed({ if (host == null) connect(device, retry = true) }, 2500)

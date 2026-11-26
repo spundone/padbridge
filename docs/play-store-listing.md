@@ -179,7 +179,7 @@ Haptic feedback for clicks, key presses and gamepad buttons. Can be turned off i
 
 ## Pre-launch notes
 
-- Build the `play` flavor (`./gradlew bundlePlayRelease`); it excludes root mode.
+- Build the `play` flavor (`./gradlew bundlePlayStandardRelease`); it excludes root mode.
 - Upload with an upload key; enroll in Play App Signing. Never upload a build signed with the shared dev key.
 - Screenshots: see [screenshots/README.md](screenshots/README.md).
 - Store-ready assets and text live in `fastlane/metadata/android/en-US/` (fastlane supply layout): icon 512², feature
